@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+        <title>BALTRAD WMS demo</title>
+        <link rel="stylesheet" href="style.css" type="text/css">
+        <script src="http://maps.google.com/maps/api/js?v=3.3&amp;sensor=false"></script>
+        <script src="http://openlayers.org/api/OpenLayers.js"></script>
+        <script src="demo.js"></script>
+    </head>
+    <body onload="init()">
+        <h1 id="title">Baltrad WMS demo</h1>
+        <p id="shortdesc">
+            Choose product:
+            <select id="layer" onchange="javascript:update_layer_params()" >
+              <option value="baltrad_dbz">Rain (dBZ)</option>
+              <option value="baltrad_mmh">Rain (mm/h)</option>
+            </select>
+            Timestamp: 
+            <select id="timestamps" onchange="javascript:update_layer_params();">
+               <option id="">default</select>
+            </select>
+            <a href="#" onclick="javascript:go('down')"><img src="img/south-mini.png"></a> 
+            <a href="#" onclick="javascript:go('up')"><img src="img/north-mini.png"></a> 
+        </p>
+        <div>
+          <div id="map" class="map"></div>
+          <div id="legend"> <img src="" alt="legend" id="map_legend" /> 
+          <div id="featureinfo">Click map to get values.</div>
+          <hr/>
+          <br/>
+          <h2>Tools</h2>
+          <p id="shortdesc">
+            <a href="#" onclick="javascript:export_to_geotiff();">Download GeoTIFF</a>
+            <br/><br/>
+            From:<br/>
+            <select id="starttime">
+               <option id="">default</select>
+            </select>
+            <br/>
+            To:<br/>
+            <select id="endtime">
+               <option id="">default</select>
+            </select>
+            <br/>
+            <a href="#" onclick="javascript:export_to_kmz();">Generate time series KMZ file</a>
+            <!--
+            <br/> OR <br/>
+            <a href="#" onclick="javascript:view_accumulated_rain();">View accumulated rain</a>
+            -->
+          </p>
+        </div>
+        </div>
+    </body>
+</html>

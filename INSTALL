@@ -1,0 +1,129 @@
+Updating existing installion
+----------------------------
+- Backup your baltrad_wms.cfg
+- Extract new version and replace baltrad_wms.cfg file there
+- Set config paths to "baltrad_wms.py" and "update_baltrad_wms.py"
+- Run clear_baltrad_wms_data.py
+- Run update_baltrad_wms.py to generate tiffs
+
+The first installation
+----------------------
+1. Install dependencies, see sections below
+
+2. Configure files
+
+Open file "baltrad_wms.cfg" for editing. There are five values that must be set.
+* baltrad_data_dir: Directory where Baltrad HDF5 files are stored. The files must be in this directory, not in subdirectories.
+* wms_data_dir: Directory where GeoTIFF files converted from HDF5 files are stored. This can be in a temporary directory that is not cleaned up too often.
+* mapfile: Location of Mapserver mapfile. Set this to directory where baltrad_wms is installed.
+* datasets: Location of datasets file that stores metadata (this is like database but text-based). Set this to directory where baltrad_wms installed. 
+* online_resource: URL of baltrad wms script
+* tmpdir: directory for temporary files, optional (used only by baltrad wms tools)
+
+Optionally you can also set datasets:
+* dataset_1, dataset_2 etc. are the products in HDF5 to be visualized.
+  * name: unique dataset name. names must match with layer names in baltrad_wms.map file
+  * hdf_dataset: dataset path in HDF5 file
+  * unit: Unit of data
+
+Open files "baltrad_wms.py" and "update_baltrad_wms.py" and set the variable config_path located in the line number 3 in both files. This is the path to the file that was edited in the previous stage.
+
+If you want to use WSGI script instead of CGI script then edit baltrad_wms.wsgi
+
+3. Test update_baltrad_wms.py
+
+Run "python update_baltrad_wms.py". If everything is successfully installed it shouldn't output anything. This script checks if there are new of deprecated files in HDF5 directory and converts them to GeoTIFFs and updates baltrad_dataset.dat file. The script is designed to be run from cron. So you can install this to crontab if you want datasets regulary updated.
+
+4. Test baltrad_wms.py or baltrad_wms.wsgi
+
+You can run WMS script using CGI or WSGI handler. WSGI script includes possibility to run without Web server. Simply run ./baltrad.wsgi to do that. This is not recommended for production environment but it is useful for testing purposes. 
+
+This is a CGI script. Copy this file to directory where it's allowed to run CGI scripts (By default in Apache2/Ubuntu it is /usr/lib/cgi-bin). Test if it works with Web browser (for example http://localhost/cgi-bin/baltrad_wms.py). If everything is OK, it should output something like "No query information to decode. QUERY_STRING is set, but empty"
+
+Setting up of a demo
+--------------------
+To test wms script with OpenLayers demo (or any other WMS client) you must have at least one dataset in your HDF5 directory and update_baltrad_wms.py executed after adding dataset(s). Running update_baltrad_wms.py might take for while if you have a large number of HDF5 files.
+
+Copy or symlink demo directory to the directory available for Web server. Edit demo.js and set variable wms_url (at the beginning of the code) to the URL of baltrad_wms.py. It should be same as "online_resource" value in baltrad_wms.cfg file. You can't run demo locally because the application uses AJAX call to fetch timestamps and it's allowed only from the same domain for security reasons. If you try the demo locally you can only see the newest dataset.
+
+You can also test WMS service with Google Earth (see http://earth.google.com/support/bin/static.py?page=guide.cs&guide=22373&topic=22376&answer=148100#wms) or any other WMS client. Unfortunately time dimension is not suppoted by common WMS clients and then only the newest datasets is shown.
+
+
+Installation of dependencies on Centos5
+---------------------------------------
+Test platform:
+Centos 5.5 64-bin where Python 2.6.7 installed from sctrach.
+
+1. Install RPMForge repository
+(http://wiki.centos.org/AdditionalResources/Repositories/RPMForge)
+wget http://packages.sw.be/rpmforge-release/rpmforge-release-0.5.2-2.el5.rf.x86_64.rpm
+rpm --import http://apt.sw.be/RPM-GPG-KEY.dag.txt
+rpm -i rpmforge-release-0.5.2-2.el5.rf.*.rpm
+
+2. Install dependencies using yum
+
+These are needed for compiling GDAL and Mapserver:
+yum install proj-devel agg-devel geos-devel gd-devel giflib-devel libxml2-devel hdf5-devel
+
+And some essential packages for building (which you probably already
+have):
+yum install gcc gcc-c++
+
+And finally Web server
+yum install httpd
+
+2. Install GDAL (NOTE: Numpy must be installed before this. see section
+4)
+wget http://download.osgeo.org/gdal/gdal-1.9.2.tar.gz
+tar -zxvf gdal-1.9.2.tar.gz
+cd gdal-1.9.2
+./configure --with-libz=internal --with-curl=/usr/bin/curl-config
+--with-png=internal --with-libtiff=internal --with-geotiff=internal
+--with-jpeg=internal --with-gif=internal --with-geos=yes
+--with-threads=yes --with-poppler=yes --with-python --with-xerces=yes
+--with-expat=yes --without-libtool
+make
+make install
+
+3. Install Mapserver (you can try to install newer version too)
+wget http://download.osgeo.org/mapserver/mapserver-6.2.0.tar.gz
+tar -zxvf mapserver-6.2.0.tar.gz
+cd mapserver-6.2.0
+./configure --with-geos=/usr/bin/geos-config \
+--with-gdal=/usr/local/bin/gdal-config \
+--with-ogr=/usr/local/bin/gdal-config \
+--with-agg --with-freetype \
+--with-proj=/usr --with-wfs \
+--with-gd=/usr
+make
+cd mapscript/python
+python setup.py install
+
+Note: make sure /usr/local/lib is at LD_LIBRARY_PATH
+Daniel's note: 
+"For some reason, I had to tweak the mapserver's 
+Makefile manually so that /usr/local/include,lib came before 
+/usr/include,lib..."
+
+4. Finally install other Python libs
+Here python-setuptools is used, which was installed like this:
+wget http://pypi.python.org/packages/2.6/s/setuptools/setuptools-0.6c11-py2.6.egg#md5=bfa92100bd772d5a213eedd356d64086
+sh setuptools-0.6c11-py2.6.egg
+
+and then...
+easy_install numpy
+easy_install h5py
+easy_install pyproj
+easy_install GDAL
+
+Installation of dependencies on Ubuntu (10.04-)
+-----------------------------------------------
+1. Install dependencies using packages from UbuntuGIS repository
+
+Add UbuntuGIS repository, see https://wiki.ubuntu.com/UbuntuGIS
+
+Then run:
+sudo apt-get install python-mapscript python-h5py python-pyproj python-numpy python-gdal
+
+Apache can be installed in Ubuntu with command:
+sudo apt-get install apache2

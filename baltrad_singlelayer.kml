@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Folder>
+  <name>BALTRAD RADAR</name>
+  <description>Baltrad radar data exported to KML format</description>
+  <Folder>
+    <name>REPLACE_NAME</name>
+    <description>This is metadata and will be replaced with description someday.</description>
+    <!--
+    <GroundOverlay>
+      <name>Data</name>
+      <description>Overlay shows STUKWMS data.</description>
+      <Icon>
+        <href>image.png</href>
+      </Icon>
+      <LatLonBox>
+        <north>latmax</north>
+        <south>latmin</south>
+        <east>lonmax</east>
+        <west>lonmin</west>
+        <rotation>0</rotation>
+      </LatLonBox>
+    </GroundOverlay>
+    -->
+    <ScreenOverlay id="Legend">
+      <name>Legend</name>
+      <description>Legend</description>
+      <Icon><href>legend.png</href></Icon>
+      <overlayXY x=".95" y=".95" xunits="fraction" yunits="fraction"/>
+      <screenXY x=".95" y=".95" xunits="fraction" yunits="fraction"/>
+      <rotationXY x="0" y="0" xunits="fraction" yunits="fraction"/>
+      <size x="-1" y="-1" xunits="fraction" yunits="fraction"/>
+      <color>ffffffff</color>
+    </ScreenOverlay>    
+  </Folder>
+</Folder>
+</kml>
