@@ -1,9 +1,10 @@
 MAP
   NAME "baltrad_wms"
-  #EXTENT -2200000 -712631 3072800 3840000
   EXTENT -180 -90 180 90
+  UNITS dd
   IMAGETYPE PNG
-  #IMAGECOLOR 105 153 189
+  #DEBUG 5
+  #CONFIG "MS_ERRORFILE" "/tmp/ms_error.txt"
   IMAGECOLOR 255 255 255
   MAXSIZE 4096
   STATUS ON
@@ -20,6 +21,7 @@ MAP
   END
 
   # "pseudo" gif, really it is PNG
+  # for google earth only
   OUTPUTFORMAT
     NAME "gif"
     MIMETYPE "image/png"
@@ -33,7 +35,7 @@ MAP
   PROJECTION
     "init=epsg:4326"
   END
- 
+
   WEB
     METADATA
       "ows_enable_request" "*"
@@ -43,173 +45,6 @@ MAP
       "wms_getmap_formatlist" "image/png,image/gif,GIF"
       "wms_feature_info_mime_type" "text/html"
       "wfs_maxfeatures" "1"
-    END
-  END
-
-  LAYER
-    NAME "baltrad_dbz"
-    TYPE RASTER
-    STATUS ON
-    CLASSITEM "[pixel]"
-    DUMP true
-    PROJECTION
-      "init=epsg:4326"
-    END
-    METADATA
-      "wms_title" "Radar (dBZ)"
-      "wms_timeitem" "TIFFTAG_DATETIME"
-    END
-    OPACITY 70
-    CLASS
-      NAME "dBZ"
-      EXPRESSION ([pixel] > 200)
-      STYLE
-        COLOR 211 211 211
-      END
-    END
-    CLASS
-      NAME ">120"
-      EXPRESSION ([pixel]>120 AND [pixel] <=200)
-      STYLE
-        COLOR 215 48 39
-      END
-    END
-    CLASS
-      NAME "105-120"
-      EXPRESSION ([pixel]>105 AND [pixel] <=120)
-      STYLE
-        COLOR 244 109 67
-      END
-    END
-    CLASS
-      NAME "90-105"
-      EXPRESSION ([pixel]>90 AND [pixel] <=105)
-      STYLE
-        COLOR 253 174 97
-      END
-    END
-    CLASS
-      NAME "75-90"
-      EXPRESSION ([pixel]>75 AND [pixel] <=90)
-      STYLE
-        COLOR 254 224 144
-      END
-    END
-    CLASS
-      NAME "60-75"
-      EXPRESSION ([pixel]>60 AND [pixel] <=75)
-      STYLE
-        COLOR 255 255 191
-      END
-    END
-    CLASS
-      NAME "45-60"
-      EXPRESSION ([pixel]>45 AND [pixel] <=60)
-      STYLE
-        COLOR 224 243 248
-      END
-    END
-
-    CLASS
-      NAME "30-45"
-      EXPRESSION ([pixel]>30 AND [pixel] <=45)
-      STYLE
-        COLOR 171 217 233
-      END
-    END
-    CLASS
-      NAME "15-30"
-      EXPRESSION ([pixel]>15 AND [pixel] <=30)
-      STYLE
-        COLOR 116 173 209
-      END
-    END
-    CLASS
-      NAME "0-15"
-      EXPRESSION ([pixel]>0 AND [pixel] <=15)
-      STYLE
-        COLOR 69 117 180
-      END
-    END
-  END
-  
-  LAYER
-    NAME "baltrad_mmh"
-    GROUP "baltrad"
-    TYPE RASTER
-    STATUS ON
-    CLASSITEM "[pixel]"
-    DUMP true
-    PROJECTION
-      "init=epsg:4326"
-    END
-    METADATA
-      "wms_title" "Radar (mm/h)"
-      "wms_timeitem" "TIFFTAG_DATETIME"
-    END
-    OPACITY 70
-    CLASS
-      NAME "mm/h"
-      EXPRESSION ([pixel] > 9e9)
-      STYLE
-        COLOR 255 255 255
-      END
-    END
-    CLASS
-      NAME ">7"
-      EXPRESSION ([pixel]>7 and [pixel] <= 9e9 )
-      STYLE
-        COLOR 255 0 0
-      END
-    END
-    CLASS
-      NAME "5-7"
-      EXPRESSION ([pixel]>5 AND [pixel] <=7)
-      STYLE
-        COLOR 255 51 102
-      END
-    END
-    CLASS
-      NAME "2-5"
-      EXPRESSION ([pixel]>2 AND [pixel] <=5)
-      STYLE
-        COLOR 255 153 51
-      END
-    END
-    CLASS
-      NAME "1-2"
-      EXPRESSION ([pixel]>1 AND [pixel] <=2)
-      STYLE
-        COLOR 255 204 0
-      END
-    END
-    CLASS
-      NAME "0.5-1"
-      EXPRESSION ([pixel]>0.5 AND [pixel] <=1)
-      STYLE
-        COLOR 255 255 51
-      END
-    END
-    CLASS
-      NAME "0.2-0.5"
-      EXPRESSION ([pixel]>0.2 AND [pixel] <=0.5)
-      STYLE
-        COLOR 153 255 102
-      END
-    END
-    CLASS
-      NAME "0.1-0.2"
-      EXPRESSION ([pixel]>0.1 AND [pixel] <=0.2)
-      STYLE
-        COLOR 0 204 153
-      END
-    END
-    CLASS
-      NAME "-0.1"
-      EXPRESSION ([pixel]>0.05 AND [pixel] <=0.1)
-      STYLE
-        COLOR 0 153 204
-      END
     END
   END
 END

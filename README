@@ -4,7 +4,9 @@ by Tuomas Peltonen, STUK <tuomas.peltonen@stuk.fi>
 
 Dependencies
 ------------
-* Mapserver with Python bindings (http://mapserver.org/)
+* Python version 2.6 or higher
+* SqlAlchemy (http://www.sqlalchemy.org/
+* Mapserver version 6 or later with Python bindings (http://mapserver.org/)
 * h5py (http://code.google.com/p/h5py/)
 * pyproj (http://code.google.com/p/pyproj/)
 * numpy (http://numpy.scipy.org/)
@@ -13,6 +15,15 @@ Dependencies
 
 History
 -------
+13.12.2013
+* Added support for FMI Open data
+* Migrated metadata storage from file to DB
+* Improved logging
+* Improved colour scales
+* Added support for countour plots
+* Documentation updated
+* Many minor improvements
+
 30.1.2013
 * Added WSGI script for baltrad_wms
 
@@ -31,7 +42,3 @@ History
 6.10.2011: 
 * First version 0.1 released for testing
 
-TODO list
----------
-Defects:
-* fix scale (colors, numbers etc.)

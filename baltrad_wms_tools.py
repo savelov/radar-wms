@@ -1,10 +1,13 @@
 #!/usr/bin/env python
-from baltrad_wms import read_config
-try: # TODO: fix
-    from h5togeotiff import h5togeotiff
-    from update_baltrad_wms import read_datasets
-except ImportError:
-    pass
+# read config
+import ConfigParser
+from configurator import read_config,config
+from baltrad_wms import get_query_layer
+settings = read_config(tools=True)
+online_resource = settings["online_resource"]
+tmpdir = settings["tmpdir"]
+
+from db_setup import *
 
 import cgi
 import os
@@ -13,14 +16,22 @@ from urllib import urlopen
 from xml.etree import ElementTree
 import zipfile
 import tempfile
+from pyproj import Proj, transform
 
 kmz_image_width = 600
 kml_namespace = "http://www.opengis.net/kml/2.2"
 
+#            else:
+#                bbox_lonlat = None
+
 def download_geotiff():
     timestamp = pars["TIME"].value
+    time_object = datetime.strptime(timestamp,"%Y-%m-%dT%H:%M:00Z")
     layer_name = pars["LAYER"].value
-    tiff_path = datasets.get(timestamp,layer_name)
+    radar_dataset = session.query(RadarDataset)\
+            .filter(RadarDataset.name==get_query_layer(layer_name))\
+            .filter(RadarDataset.timestamp==time_object).one()
+    tiff_path = radar_dataset.geotiff_path
     filename = os.path.basename(tiff_path)
     content = open(tiff_path).read()
     return content, filename
@@ -28,19 +39,39 @@ def download_geotiff():
 def time_series(req):
     start_time = pars["START_TIME"].value
     end_time =  pars["END_TIME"].value
+    # read time values as objects
+    start = datetime.strptime(start_time,"%Y-%m-%dT%H:%M:00Z")
+    end = datetime.strptime(end_time,"%Y-%m-%dT%H:%M:00Z")
     layer_name = pars["LAYER"].value
-    for i in range (len(sections)):
-        if sections[i]==start_time: # Start found
-            start_index = i
-        if sections[i]==end_time: # end found
-            end_index = i
-            break
-    timestamps = sections[start_index:end_index+1]
+    radar_datasets = session.query(RadarDataset)\
+            .filter(RadarDataset.name==get_query_layer(layer_name))\
+            .filter(RadarDataset.timestamp>=start)\
+            .filter(RadarDataset.timestamp<=end)
+    timestamps = []
+    bboxes = []
+    for r in radar_datasets.all():
+        timestamps.append( r.timestamp.strftime("%Y-%m-%dT%H:%M:00Z") )
+        if "epsg" in r.projdef.lower():
+            radar_proj = Proj(init=r.projdef)
+        else:
+            radar_proj = Proj(str(r.projdef))
+        lonlat_proj = Proj(init="epsg:4326")
+        b = r.bbox_original.split(",")
+        lonmin, latmin = transform(radar_proj,
+                                   lonlat_proj,
+                                   float(b[0]),
+                                   float(b[1]))
+        lonmax, latmax = transform(radar_proj,
+                                   lonlat_proj,
+                                   float(b[2]),
+                                   float(b[3]))
+        # add some extra bounds due to different projection
+        bbox_lonlat = [lonmin-1, latmin-1, lonmax+1, latmax+1]
+        bbox_lonlat = map(str,bbox_lonlat)
+        bbox_lonlat = ",".join( bbox_lonlat )
+        bboxes.append( bbox_lonlat )
     if req=="kmz":
         # read bboxes from config
-        bboxes = []
-        for t in timestamps:
-            bboxes.append(datasets.get(t,"bbox"))
         # calculate image dimensions
         bbox_0 = map( float, bboxes[0].split(","))
         kmz_image_height = int ( kmz_image_width * (bbox_0[3]-bbox_0[1]) / (bbox_0[2]-bbox_0[0]) ) 
@@ -117,23 +148,9 @@ def time_series(req):
         content = kmz_output.getvalue()
         filename = "BALTRAD_DATA_from_%s_to_%s.kmz" % (timestamps[0],timestamps[-1])
         return content, filename
-    elif req=="accumulated_rain":
-        files = []
-        for t in timestamps:
-            files.append(datasets.get(t,layer_name))
-        # generate tiff
-        for d in read_datasets:
-            if d["name"]==layer_name:
-                hdf_dataset = d["hdf_dataset"]
-        # TODO: implement
-        tiff_path = "/tmp/testi.tif"
-        geotiff = h5togeotiff( files, tiff_path, hdf_dataset )
-        # create temporary mapfile
-        # request string?
-        content = ",".join(files)
-    return content, "debug,txt"
+    else:
+        return content, "debug,txt"
 
-sections, datasets, tmpdir, online_resource = read_config(True)
 pars = cgi.FieldStorage()
 
 action = pars["ACTION"].value

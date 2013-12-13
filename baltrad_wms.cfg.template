@@ -1,0 +1,201 @@
+[locations]
+db_uri = sqlite:////home/user/baltrad-wms/radar_datasets.db
+baltrad_data_dir = /home/user/baltrad_data
+wms_data_dir =/home/user/baltrad_wms_data
+mapfile = /home/user/baltrad-wms/baltrad_wms.map
+online_resource = http://localhost:8080/
+tmpdir = /tmp
+
+[settings]
+# true | false
+enable_countour_maps = false
+fmi_api_key = insert-your-fmiapikey-here
+
+[logging]
+# critical, error, warn, info, or debug
+level = debug
+
+[Radar_dbzh_style]
+# SYNTAX: number = name,from,to,R,G,B
+1 = dBZ,201,299,204,204,204
+2 = very heavy,180,201,250,81,165
+3 = very heavy,168,180,131,10,70
+4 = very heavy,156,168,206,2,2
+5 = very heavy,144,156,232,86,22
+6 = very heavy,132,144,235,149,26
+7 = very heavy,124,132,223,196,10
+8 = heavy,112,124,241,243,90
+9 = heavy,100,112,64,152,87
+10 = moderate,88,100,88,199,151
+11 = moderate,80,88,108,235,243
+
+[Radar_mmh_style]
+1 = ,63,999,204,204,204
+2 = > 25 mm/h,25,63,131,10,70
+3 = 10-25 mm/h,10,25,206,2,2
+4 = 4-10 mm/h,4,10,232,86,22
+5 = 2.2-4 mm/h,2.16,4.0,235,149,26
+6 = 0.9-2.2 mm/h,0.86,2.16,223,196,10
+7 = 0.3-0.9 mm/h,0.34,0.86,241,243,90
+8 = 0.1-0.3 mm/h,0.14,0.34,64,152,87
+9 = < 0.1 mm/h,0.07,0.14,108,235,243
+
+[FMI_Radar_mmh_style]
+1 = ,6313,65535,204,204,204
+2 = > 25 mm/h,2513,6313,131,10,70
+3 = 10-25 mm/h,1000,2513,206,2,2
+4 = 4-10 mm/h,398,1000,232,86,22
+5 = 2.2-4 mm/h,216,398,235,149,26
+6 = 0.9-2.2 mm/h,86,216,223,196,10
+7 = 0.3-0.9 mm/h,34,86,241,243,90
+8 = 0.1-0.3 mm/h,14,34,64,152,87
+9 = < 0.1 mm/h,7,14,108,235,243
+
+[FMI_Radar_accumulated_style]
+1 = mm,65530,99999999,204,204,204
+2 = 200,20000,65530,138,138,139
+3 = 190,19000,20000,189,189,190
+4 = 180,18000,19000,219,219,219
+5 = 170,17000,18000,249,249,250
+6 = 160,16000,17000,222,223,249
+7 = 150,15000,16000,202,203,249
+8 = 140,14000,15000,181,183,249
+9 = 130,13000,14000,151,153,250
+10 = 120,12000,13000,103,107,250
+11 = 110,11000,12000,67,71,250
+12 = 100,10000,11000,3,9,251
+13 = 95,9500,10000,141,7,10
+14 = 90,9000,9500,166,7,10
+15 = 85,8500,9000,193,8,10
+16 = 80,8000,8500,219,12,14
+17 = 75,7500,8000,249,8,7
+18 = 70,7000,7500,228,6,23
+19 = 65,6500,7000,208,13,12
+20 = 60,6000,6500,224,9,99
+21 = 55,5500,6000,241,13,151
+22 = 50,5000,5500,245,22,247
+23 = 47.5,4750,5000,215,118,232
+24 = 45,4500,4750,190,141,214
+25 = 42.5,4250,4500,201,170,220
+26 = 40,4000,4250,178,148,207
+27 = 37.5,3750,4000,150,118,182
+28 = 35,3500,3750,122,87,156
+29 = 32.5,3250,3500,101,65,140
+30 = 30,3000,3250,80,43,119
+31 = 27.5,2750,3000,62,23,102
+32 = 25,2500,2750,43,3,85
+33 = 24,2400,2500,240,186,231
+34 = 23,2300,2400,211,155,201
+35 = 22,2200,2300,194,131,182
+36 = 21,2100,2200,175,106,163
+37 = 20,2000,2100,151,72,137
+38 = 19,1900,2000,133,47,188
+39 = 18,1800,1900,118,25,101
+40 = 17,1700,1800,94,3,81
+41 = 16,1600,1700,70,3,69
+42 = 15,1500,1600,54,2,61
+43 = 14.5,1450,1500,252,210,207
+44 = 14,1400,1450,253,185,180
+45 = 13.5,1350,1400,250,160,154
+46 = 13,1300,1350,236,139,130
+47 = 12.5,1250,1300,218,121,113
+48 = 12,1200,1250,197,100,92
+49 = 11.5,1150,1200,179,83,74
+50 = 11,1100,1150,155,59,50
+51 = 10.5,1050,1100,131,35,26
+52 = 10,1000,1050,107,11,1
+53 = 9.5,950,1000,203,64,2
+54 = 9,900,950,212,88,2
+55 = 8.5,850,900,222,106,1
+56 = 8,800,850,225,129,3
+57 = 7.5,750,800,229,155,7
+58 = 7,700,750,232,179,10
+59 = 6.5,650,700,235,203,13
+60 = 6,600,650,238,225,15
+61 = 5.5,550,600,237,247,59
+62 = 5,500,550,206,245,50
+63 = 4.5,450,500,14,93,135
+64 = 4,400,450,14,93,135
+65 = 3.5,350,400,35,118,163
+66 = 3,300,350,59,145,193
+67 = 2.5,250,300,93,168,213
+68 = 2,200,250,147,198,228
+69 = 1.5,150,200,181,217,237
+70 = 1,100,150,212,234,246
+71 = 0.9,90,100,161,211,148
+72 = 0.8,80,90,131,183,137
+73 = 0.7,70,80,88,149,112
+74 = 0.6,60,70,45,114,87
+75 = 0.5,50,60,37,4,4
+76 = 0.4,40,50,181,198,228
+77 = 0.3,30,40,131,145,201 
+78 = 0.2,20,30,92,103,182
+79 = 0.1,10,20,49,57,159
+80 = ,0,9.5,204,204,204
+
+# dataset names must be unique!
+# Dataset section names are dataset_1, dataset_2, etc. (no limitation)
+[dataset_1]
+# ascii characters, max 50 characters, no spaces!
+name = baltrad_dbz 
+title = BALTRAD Radar (dBZH)
+# options: hdf | geotiff
+dataset_type = hdf 
+# dataset location in hdf file, not used in geotiff datasets
+hdf_dataset = dataset1/data1 
+# units in legend
+unit = dBZ 
+# refer to some style section in this file
+style = Radar_dbzh_style
+# clean-up time in full hours (set -1 for no cleanup)
+# this will also prevent adding datasets older than this!
+cleanup_time = 120
+
+[dataset_2]
+name = baltrad_mmh
+title = BALTRAD Radar (mm/h)
+dataset_type = hdf
+hdf_dataset = dataset1/data2
+unit = mm/h
+style = Radar_mmh_style
+cleanup_time = 120
+
+[dataset_3]
+name = fmi_open_composite_dbz 
+title = FMI Open Radar (dBZH)
+dataset_type = geotiff
+unit = dBZ 
+style = Radar_dbzh_style
+cleanup_time = 48
+
+[dataset_4]
+name = fmi_open_composite_rr
+title = FMI Open Radar (mm/h)
+dataset_type = geotiff
+unit = mm/h
+style = FMI_Radar_mmh_style
+cleanup_time = 48
+
+[dataset_5]
+name = fmi_open_composite_rr1h
+title = FMI Open Radar accumulated rain 1 h
+dataset_type = geotiff
+unit = mm
+style = FMI_Radar_accumulated_style
+cleanup_time = 72
+
+[dataset_6]
+name = fmi_open_composite_rr12h
+title = FMI Open Radar accumulated rain 12 h
+dataset_type = geotiff
+unit = mm
+style = FMI_Radar_accumulated_style
+cleanup_time = 72
+
+[dataset_7]
+name = fmi_open_composite_rr24h
+title = FMI Open Radar accumulated rain 24 h
+dataset_type = geotiff
+unit = mm
+style = FMI_Radar_accumulated_style
+cleanup_time = 120

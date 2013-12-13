@@ -1,21 +1,24 @@
 #!/usr/bin/env python
-from update_baltrad_wms import config_path, read_datasets
+from configurator import read_config,config
 import ConfigParser
 import os
+from db_setup import drop
 
 # read config
-config = ConfigParser.ConfigParser()
-config.read( config_path )
-datasets_file = config.get("locations","datasets")
+settings = read_config()
+datasets = []
+for section in config.sections():
+    if "dataset" in section:
+        datasets.append(config.get(section,"name"))
 
-
-for d in read_datasets():
-    wms_datadir = config.get("locations","wms_data_dir") + "/" + d["name"]
-    for filename in os.listdir(wms_datadir):
-        os.remove(os.path.join(wms_datadir,filename))
-    os.rmdir(wms_datadir)
+for d in datasets:
+    wms_datadir = config.get("locations","wms_data_dir") + "/" + d
+    try:
+        for filename in os.listdir(wms_datadir):
+            os.remove(os.path.join(wms_datadir,filename))
+        os.rmdir(wms_datadir)
+    except OSError:
+        pass
 print "Deleted wms files."
-
-textfile = file(datasets_file,'wt')
-textfile.close()
-print "Cleared file %s." % (datasets_file)
+drop()
+print "Cleared DB"

@@ -1,10 +1,11 @@
-var wms_url = "http://localhost/cgi-bin/baltrad_wms.py";
-var wms_tools_url = "../cgi-bin/baltrad_wms_tools.py";
+var wms_url = "/baltrad/baltrad_wms.py";
+// var wms_url = "/baltrad_wsgi";
+var wms_tools_url = "/baltrad/baltrad_wms_tools.py";
 
 /* do not edit anything below this */
 var map;
 var layer;
-var layer_name = "baltrad_dbz";
+var layer_name;
 var first_update = true;
 var time_value; // current time
 
@@ -34,11 +35,13 @@ function init() {
         4
     );
 
+    layer_name = document.getElementsByTagName("select")[0].value;
+
     layer = new OpenLayers.Layer.WMS(
         "Radar",
         wms_url,
         {layers: layer_name, transparent: 'true', format: 'image/png', time: "-1"},
-        {isBaseLayer: false,singleTile: true} );
+        {isBaseLayer: false,singleTile: true, buffer: 0} );
     map.addLayer(layer);
 
     map.events.register('click', map, findLayerClick);
@@ -50,29 +53,28 @@ function init() {
 function update_meta () {
     OpenLayers.Request.GET({
         url: wms_url,
+        async: false,
         params: {
             SERVICE: "WMS",
             VERSION: "1.1.1",
             REQUEST: "GetCapabilities"
         },
         success: function(request) {
-            var doc = request.responseXML;
+            var doc = StringToXML(request.responseText);
             var layers = doc.getElementsByTagName("Layer")[0].getElementsByTagName("Layer");
             for (i=0;i<layers.length;i++) {
-                if (layers[i].getElementsByTagName("Name")[0].childNodes[0].nodeValue==layer_name) {
-                    if (first_update) {
-                        var time_values = getDataOfImmediateChild(layers[i], "Extent").split(",");
-                        var select = document.getElementsByTagName("select")[1];
-                        select.options.length = 0;
-                        for (k=0;k<time_values.length;k++)
-                            select.options.add(new Option(time_values[k],time_values[k]));
-                        first_update = false;
-                        var start_select = document.getElementsByTagName("select")[2];
-                        var end_select = document.getElementsByTagName("select")[3];
-                        start_select.innerHTML = select.innerHTML;
-                        start_select.selectedIndex = 5;
-                        end_select.innerHTML = select.innerHTML;
-                    }
+                if (layers[i].getElementsByTagName("Name")[0].childNodes[0].nodeValue.split(",")[0]==layer_name) {
+                    var time_values = getDataOfImmediateChild(layers[i], "Extent").split(",");
+                    var select = document.getElementsByTagName("select")[1];
+                    select.options.length = 0;
+                    for (k=0;k<time_values.length;k++)
+                        select.options.add(new Option(time_values[k],time_values[k]));
+                    first_update = false;
+                    var start_select = document.getElementsByTagName("select")[2];
+                    var end_select = document.getElementsByTagName("select")[3];
+                    start_select.innerHTML = select.innerHTML;
+                    start_select.selectedIndex = 5;
+                    end_select.innerHTML = select.innerHTML;
                     var legend_url = layers[i].getElementsByTagName("LegendURL")[0].getElementsByTagName("OnlineResource")[0].getAttributeNS('http://www.w3.org/1999/xlink', 'href');
                     document.getElementById("map_legend").src = legend_url;
                     time_value = document.getElementsByTagName("select")[1].value;
@@ -90,8 +92,8 @@ function update_layer_params() {
     var new_layer = document.getElementsByTagName("select")[0].value;
     time_value = document.getElementsByTagName("select")[1].value;
     if (new_layer!=layer_name) {
-        update_meta();
         layer_name = new_layer;
+        update_meta();
     }
     layer.mergeNewParams({time: time_value,layers:layer_name});
 }
@@ -133,7 +135,6 @@ function findLayerClick(event) {
 
 
 function setHTML(response) {
-    console.log(response)
     if (response.status==500)
         var text = ""
     else
@@ -165,6 +166,18 @@ function getDataOfImmediateChild(parentTag, subTagName)
          }
      }
      return val;
+}
+
+function StringToXML (text) {
+    if (window.ActiveXObject) {
+        var doc = new ActiveXObject('Microsoft.XMLDOM');
+        doc.async = 'false';
+        doc.loadXML(text);
+    } else {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(text,'text/xml');
+    }
+    return doc;
 }
 
 function export_to_geotiff () {

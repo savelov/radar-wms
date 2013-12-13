@@ -34,7 +34,14 @@ except ImportError: # Windows
     from gdalconst import GDT_Int16
     import gdalnumeric as gdal_array
 
-def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_type="float"):
+class H5ConversionSkip(Exception):
+    "Conversion skipper exception handler"
+    def __init__(self, message):
+        self.message = message
+    def __str__(self):
+        return self.message
+
+def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_type="float",expiration_time=None):
     """
     Converts BALTRAD hdf5 file to Mapserver compliant GeoTiff file. 
     Reprojection of data is included.
@@ -44,6 +51,8 @@ def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_typ
     * geotiff_target: Target GeoTIFF file path
     * target_projection: EPSG code string or set to None for no projection
     * dataset_name: change this if other information is wanted 
+    * data_type: data type for target file: float or int
+    * expiration_time: if defined (datetype.datetype) skip conversion if necessary
     """
     if not isinstance(hdf_files, (list, tuple)):
         hdf_files = [hdf_files]
@@ -53,6 +62,15 @@ def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_typ
         f = h5py.File(hdf5_source,'r') # read only
         where = f["where"] # coordinate variables
         what = f["what"] # data
+
+        # read time from h5 file
+        date_string = what.attrs["date"][0:8]
+        time_string = what.attrs["time"][0:4] # ignore seconds
+        starttime = datetime.strptime(date_string+"T"+time_string, "%Y%m%dT%H%M")
+        if expiration_time:
+            if starttime<expiration_time:
+                raise H5ConversionSkip("Conversion of expired dataset (%s) skipped" % str(starttime))
+
         dataset = f[dataset_name.split("/")[0]] 
         data_1 = dataset[dataset_name.split("/")[1]]
         data = data_1["data"]
@@ -90,10 +108,6 @@ def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_typ
         y_axis = numpy.arange( ymax,ymin,(ymin-ymax)/y_size )  # reversed
         #x_help_axis = numpy.arange( xmax,xmin,(xmin-xmax)/y_size ) # reverse this also
 
-        # read time from h5 file
-        date_string = what.attrs["date"][0:8]
-        time_string = what.attrs["time"][0:4] # ignore seconds
-        starttime = datetime.strptime(date_string+"T"+time_string, "%Y%m%dT%H%M")
         missing_value = data_what.attrs["nodata"]
 
         if data_type=="int":
@@ -139,10 +153,11 @@ def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_typ
     del out
 
     f.close()
-
     return {"timestamp":starttime.strftime("%Y-%m-%dT%H:%MZ"),
             "projection": proj_text,
-            "bbox": "%f,%f,%f,%f" % (lon_min,lat_min,lon_max,lat_max)}
+            "bbox_lonlat": "%f,%f,%f,%f" % (lon_min,lat_min,lon_max,lat_max),
+            "bbox_original": "%f,%f,%f,%f" % (xmin,ymin,xmax,ymax)
+            }
 
 if __name__ == '__main__':
     # command line use

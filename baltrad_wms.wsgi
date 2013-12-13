@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-
-#
-# do not edit anything below
-#
-
 import mapscript
 from cgi import parse_qs, escape
 
@@ -17,11 +12,11 @@ def application(environ,start_response):
     # read config
     req = mapscript.OWSRequest()
     req.type = mapscript.MS_GET_REQUEST
-    sections, datasets, mapfile_path = read_config()
+    settings = read_config()
     parameters = parse_qs(environ.get('QUERY_STRING', ''))
     for key in parameters.keys():
         req.setParameter(key,parameters[key][0])
-    map_object = wms_request(mapfile_path,req,sections,datasets)
+    map_object = wms_request( req, settings )
     # output result
     mapscript.msIO_installStdoutToBuffer()
     map_success = map_object.OWSDispatch( req ) # output should be 0

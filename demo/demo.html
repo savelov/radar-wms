@@ -15,15 +15,29 @@
         <p id="shortdesc">
             Choose product:
             <select id="layer" onchange="javascript:update_layer_params()" >
-              <option value="baltrad_dbz">Rain (dBZ)</option>
-              <option value="baltrad_mmh">Rain (mm/h)</option>
+              <option value="baltrad_dbz">BALTRAD Reflectivity (dBZ)</option>
+              <option value="baltrad_mmh">BALTRAD Rain (mm/h)</option>
+              <!--
+              <option value="baltrad_dbz,baltrad_dbz_contour">Rain+contour (dBZ)</option>
+              <option value="baltrad_mmh,baltrad_dbz_contour">Rain+contour (mm/h)</option>
+              -->
+              <option value="fmi_open_composite_dbz">FMI Open composite (dBZ)</option>
+              <!-- <option value="fmi_open_composite_dbz,fmi_open_composite_dbz_contour">FMI Open composite + countour (dBZ)</option> -->
+              <option value="fmi_open_composite_rr">FMI Open composite (mm/h)</option>
+              <!-- <option value="fmi_open_composite_rr,fmi_open_composite_rr_contour">FMI Open composite + contour (mm/h)</option> -->
+              <option value="fmi_open_composite_rr1h">FMI Open composite (accumulated 1 h)</option>
+              <!-- <option value="fmi_open_composite_rr1h,fmi_open_composite_rr1h_contour">FMI Open composite + contour (accumulated 1 h)</option> -->
+              <option value="fmi_open_composite_rr12h">FMI Open composite (accumulated 12 h)</option>
+              <!-- <option value="fmi_open_composite_rr12h,fmi_open_composite_rr12h_contour">FMI Open composite + contour (accumulated 12 h)</option> -->
+              <option value="fmi_open_composite_rr24h">FMI Open composite (accumulated 24 h)</option>
+              <!-- <option value="fmi_open_composite_rr24h,fmi_open_composite_rr24h_contour">FMI Open composite + contour (accumulated 24 h)</option> -->
             </select>
             Timestamp: 
             <select id="timestamps" onchange="javascript:update_layer_params();">
-               <option id="">default</select>
+               <option id="" value="-1">default</select>
             </select>
-            <a href="#" onclick="javascript:go('down')"><img src="img/south-mini.png"></a> 
-            <a href="#" onclick="javascript:go('up')"><img src="img/north-mini.png"></a> 
+            <a href="#" onclick="javascript:go('down')">[&lt;--]</a> 
+            <a href="#" onclick="javascript:go('up')">[--&gt;]</a> 
         </p>
         <div>
           <div id="map" class="map"></div>

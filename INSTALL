@@ -1,129 +1,191 @@
-Updating existing installion
+Installation
+============
+
+Installation of dependencies
 ----------------------------
-- Backup your baltrad_wms.cfg
-- Extract new version and replace baltrad_wms.cfg file there
-- Set config paths to "baltrad_wms.py" and "update_baltrad_wms.py"
-- Run clear_baltrad_wms_data.py
-- Run update_baltrad_wms.py to generate tiffs
+In principle, everything is platform independent here but the latest version is tested only with Ubuntu 12.04. If you are not using Ubuntu check README file for dependencies and install required software.
 
-The first installation
-----------------------
-1. Install dependencies, see sections below
+In Ubuntu version 12.04 the installation of dependencies is easy. Just run:
+# sudo apt-get install python-mapscript python-h5py python-pyproj python-numpy python-gdal python-sqlalchemy python-sqlite
+(python-sqlite is not required but recommended to test DB storage, alternatively you can also post Postgres or Mysql as DB engine)
 
-2. Configure files
-
-Open file "baltrad_wms.cfg" for editing. There are five values that must be set.
-* baltrad_data_dir: Directory where Baltrad HDF5 files are stored. The files must be in this directory, not in subdirectories.
-* wms_data_dir: Directory where GeoTIFF files converted from HDF5 files are stored. This can be in a temporary directory that is not cleaned up too often.
-* mapfile: Location of Mapserver mapfile. Set this to directory where baltrad_wms is installed.
-* datasets: Location of datasets file that stores metadata (this is like database but text-based). Set this to directory where baltrad_wms installed. 
-* online_resource: URL of baltrad wms script
-* tmpdir: directory for temporary files, optional (used only by baltrad wms tools)
-
-Optionally you can also set datasets:
-* dataset_1, dataset_2 etc. are the products in HDF5 to be visualized.
-  * name: unique dataset name. names must match with layer names in baltrad_wms.map file
-  * hdf_dataset: dataset path in HDF5 file
-  * unit: Unit of data
-
-Open files "baltrad_wms.py" and "update_baltrad_wms.py" and set the variable config_path located in the line number 3 in both files. This is the path to the file that was edited in the previous stage.
-
-If you want to use WSGI script instead of CGI script then edit baltrad_wms.wsgi
-
-3. Test update_baltrad_wms.py
-
-Run "python update_baltrad_wms.py". If everything is successfully installed it shouldn't output anything. This script checks if there are new of deprecated files in HDF5 directory and converts them to GeoTIFFs and updates baltrad_dataset.dat file. The script is designed to be run from cron. So you can install this to crontab if you want datasets regulary updated.
-
-4. Test baltrad_wms.py or baltrad_wms.wsgi
-
-You can run WMS script using CGI or WSGI handler. WSGI script includes possibility to run without Web server. Simply run ./baltrad.wsgi to do that. This is not recommended for production environment but it is useful for testing purposes. 
-
-This is a CGI script. Copy this file to directory where it's allowed to run CGI scripts (By default in Apache2/Ubuntu it is /usr/lib/cgi-bin). Test if it works with Web browser (for example http://localhost/cgi-bin/baltrad_wms.py). If everything is OK, it should output something like "No query information to decode. QUERY_STRING is set, but empty"
-
-Setting up of a demo
---------------------
-To test wms script with OpenLayers demo (or any other WMS client) you must have at least one dataset in your HDF5 directory and update_baltrad_wms.py executed after adding dataset(s). Running update_baltrad_wms.py might take for while if you have a large number of HDF5 files.
-
-Copy or symlink demo directory to the directory available for Web server. Edit demo.js and set variable wms_url (at the beginning of the code) to the URL of baltrad_wms.py. It should be same as "online_resource" value in baltrad_wms.cfg file. You can't run demo locally because the application uses AJAX call to fetch timestamps and it's allowed only from the same domain for security reasons. If you try the demo locally you can only see the newest dataset.
-
-You can also test WMS service with Google Earth (see http://earth.google.com/support/bin/static.py?page=guide.cs&guide=22373&topic=22376&answer=148100#wms) or any other WMS client. Unfortunately time dimension is not suppoted by common WMS clients and then only the newest datasets is shown.
-
-
-Installation of dependencies on Centos5
----------------------------------------
-Test platform:
-Centos 5.5 64-bin where Python 2.6.7 installed from sctrach.
-
-1. Install RPMForge repository
-(http://wiki.centos.org/AdditionalResources/Repositories/RPMForge)
-wget http://packages.sw.be/rpmforge-release/rpmforge-release-0.5.2-2.el5.rf.x86_64.rpm
-rpm --import http://apt.sw.be/RPM-GPG-KEY.dag.txt
-rpm -i rpmforge-release-0.5.2-2.el5.rf.*.rpm
-
-2. Install dependencies using yum
-
-These are needed for compiling GDAL and Mapserver:
-yum install proj-devel agg-devel geos-devel gd-devel giflib-devel libxml2-devel hdf5-devel
-
-And some essential packages for building (which you probably already
-have):
-yum install gcc gcc-c++
-
-And finally Web server
-yum install httpd
-
-2. Install GDAL (NOTE: Numpy must be installed before this. see section
-4)
-wget http://download.osgeo.org/gdal/gdal-1.9.2.tar.gz
-tar -zxvf gdal-1.9.2.tar.gz
-cd gdal-1.9.2
-./configure --with-libz=internal --with-curl=/usr/bin/curl-config
---with-png=internal --with-libtiff=internal --with-geotiff=internal
---with-jpeg=internal --with-gif=internal --with-geos=yes
---with-threads=yes --with-poppler=yes --with-python --with-xerces=yes
---with-expat=yes --without-libtool
-make
-make install
-
-3. Install Mapserver (you can try to install newer version too)
-wget http://download.osgeo.org/mapserver/mapserver-6.2.0.tar.gz
-tar -zxvf mapserver-6.2.0.tar.gz
-cd mapserver-6.2.0
-./configure --with-geos=/usr/bin/geos-config \
---with-gdal=/usr/local/bin/gdal-config \
---with-ogr=/usr/local/bin/gdal-config \
---with-agg --with-freetype \
---with-proj=/usr --with-wfs \
---with-gd=/usr
-make
-cd mapscript/python
-python setup.py install
-
-Note: make sure /usr/local/lib is at LD_LIBRARY_PATH
-Daniel's note: 
-"For some reason, I had to tweak the mapserver's 
-Makefile manually so that /usr/local/include,lib came before 
-/usr/include,lib..."
-
-4. Finally install other Python libs
-Here python-setuptools is used, which was installed like this:
-wget http://pypi.python.org/packages/2.6/s/setuptools/setuptools-0.6c11-py2.6.egg#md5=bfa92100bd772d5a213eedd356d64086
-sh setuptools-0.6c11-py2.6.egg
-
-and then...
-easy_install numpy
-easy_install h5py
-easy_install pyproj
-easy_install GDAL
-
-Installation of dependencies on Ubuntu (10.04-)
------------------------------------------------
-1. Install dependencies using packages from UbuntuGIS repository
-
-Add UbuntuGIS repository, see https://wiki.ubuntu.com/UbuntuGIS
-
-Then run:
-sudo apt-get install python-mapscript python-h5py python-pyproj python-numpy python-gdal
+Setup web server to provide service either using Python CGI or WSGI script. For testing purposes you can run 'python baltrad_wms.wsgi' from command line and then WMS service is available at http://localhost:8080/. This setup is recommended only for testing. Setup Apache or some other Web server software if you plan to deploy software. To test Stand-alone wsgi script you can try to access http://localhost:8080/?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetCapabilities
 
 Apache can be installed in Ubuntu with command:
 sudo apt-get install apache2
+
+Configuration of files, DB and Web service locations 
+----------------------------------------------------
+Copy baltrad_wms.cfg.template to baltrad_wms.cfg
+# cp {baltrad_wms_dir}/baltrad_wms.cfg.template {baltrad_wms_dir}/baltrad_wms.cfg
+
+Open baltrad_wms.cfg for editing. 
+
+The locations sections is the most important one. Nothing works without it. Settings are explained below:
+* db_uri (required)
+    * DB locations. For sqlite this is something like sqlite:////home/user/baltrad/radar_datasets.db. For postgres this is something like postgres://postgres:model_postgres@localhost:5432/radardb. Sqlite can create database but with postgres it must be created. More information about DB engines supported by SqlAlchemy is here: http://docs.sqlalchemy.org/en/rel_0_9/core/engines.html.
+* baltrad_data_dir (optional; required when using BALTRAD HDF5 data)
+    * Path to directory where BALTRAD HDF5 files are located. Files must be in this directory - not in subdirectories
+* wms_data_dir (required)
+    * Path to directory where TIFF files are located. These are the files that are visualized. Files are stored here - not in DB. If this directory doesn't exist it will be created by DB populations scripts.
+*  mapfile (required)
+    * Absolute path to baltrad_wms.map file. This file is located in installation directory
+* online_resource (required)
+    * URL of WMS script for clients. If stand-alone wsgi script is used this is http://localhost:8080/. In the case of Apache this could be something like http://yourdomain.com/baltrad/baltrad_wms.py
+* tmpdir (optional; required when baltrad_tools.py script is used)
+    * Directory for temporary files. For Linux environment this can be set to /tmp
+
+Configuration of other settings and logging level
+--------------------------------------------------
+Next in the baltrad_wms.cfg file are settings and logging sections.
+
+The setting enable_contour_maps is recommended to set as false. Countour maps capability requires the very latest Mapserver 6.4.0 version.
+
+There is also fmi_api_key setting which is optional. It is required if you use FMI Open data but it is not required for users who use only BALTRAD data.
+
+In the logging section there is level setting. For testing it can be set to debug which is very verbose. For testing info is probably enough but if you are interested what is really happening set this to debug. In production this must be set to critical or error.
+
+Configuration of styles
+-----------------------
+The next four sections in template files are styles. Style sections is follow syntax:
+[Style_name]
+[number] = [name],[from_value],[to_value],[R],[G],[B]
+
+Styles have been adopted from FMI Opendata resources project (https://github.com/fmidev/opendata-resources) and you don't have to touch them if you are satisfied with the colours.
+
+Dataset sections
+----------------
+Finally you have to configure datasets. Dataset sections names are dataset_1, dataset_2 etc. This is very impontant. If you set them some other name the scripts will not find them.
+
+In template file you can find templates for BALTRAD data and FMI Open data. With BALTRAD data you must check the contents of your HDF5 files to get the parameters.
+
+Dataset parameters are:
+* name (required)
+    * Unique name for datasets. This is layer name in WMS requests.Avoid any special characters here (including white space).
+* title (required)
+    * Set dataset title. This can be same as hame
+* dataset_type (required)
+    * This is hdf or geotiff. For BALTRAD HDF5 files set this to hdf and for FMI Open data set this to geotiff
+* hdf_dataset (optional; required for BALTRAD data)
+    * Path of HDF dataset in HDF5 file. In ODIM_H5 file this is dataset1/data1, dataset1/data2 etc.
+* unit (required)
+    * Set unit name. Possible values are dBZ, mm/h and mm
+* style (required)
+    * This refers to style section name. The style section with this name must exist in config file
+* cleanup_time (required)
+    * Dataset cleanup time in hours. Set this to -1 for no clean-up. With constant data flow the file storage size grow rapidly, so this is hightly recommended to set this. For testing purposes value -1 can be used. The script reads time from system so make sure it is OK.
+
+Setup configurator.py
+---------------------
+Open configurator.py and modify variable path to point your baltrad_wms.cfg
+
+Setting up of database
+----------------------
+Run 
+# python db_setup.py
+
+You are first asked for confirmation. Answer 'y' here. 
+
+If you are not using sqlite you have to create database by hand. In Postgres this could be done using createdb command. 
+
+Setting up of BALTRAD datasets
+------------------------------
+NOTE: If you are using only BALTRAD data you can delete dataset sections 3-7 from baltrad_wms.cfg file
+
+Make sure you have HDF5 files in your baltrad_data_dir (see baltrad_wms.cfg). Then run 
+# python update_baltrad_wms.py
+
+The script will populate database with files and cleans up old files.
+
+In deployment setup this script can be run as a cron job with logging level 'critical'.
+
+Setting up of FMI Open datasets
+-------------------------------
+NOTE: If you are using only FMI open data you can delete dataset sections 1-2 from baltrad_wms.cfg file
+
+Make sure you have set your fmi_api_key in your config file.
+
+Then run:
+# python fmi_open.py
+
+The script will populate database with new datasets and cleans up old ones.
+
+In deploment setup this script can be run as a cronjob with logging level 'critical'.
+
+Setting up of a Web server
+--------------------------
+To serve images over HTTP or HTTPS you have to set up Web Server. Apache2 setup is explained here. You have two options how to serve files: Using Python CGI (traditional way) or Python WSGI (modern way). Apache configurations are explained here.
+
+In Ubuntu 12.04 Apache configuration is in the file /etc/apache2/httpd.conf.
+
+To serve via Python CGI add these lines to your Apache2 config (NOTE: modify baltrad-wms directory path!):
+	ScriptAlias /baltrad/ /home/user/baltrad-wms/
+	<Directory "/home/user/baltrad-wms">
+		AllowOverride None
+		Options +ExecCGI -MultiViews +SymLinksIfOwnerMatch
+		Order allow,deny
+		Allow from all
+	</Directory>
+
+Alternatively you can use WSGI script baltrad_wms.wsgi
+
+To run WSGI programs you have to install mod_wsgi:
+#  sudo apt-get install libapache2-mod-wsgi
+
+Then you can add line 
+WSGIScriptAlias /baltrad_wsgi /home/user/baltrad-wms/baltrad_wms.wsgi
+
+to your Apache config
+
+Restart Apache:
+# sudo service apache2 restart
+
+Now you should be able to access http://localhost/baltrad/baltrad_wms.py or http://localhost/baltrad_wsgi via Web browser.
+
+Other installation issues
+-------------------------
+For fresh start, run 
+# python clear_baltrad_wms_data.py
+
+Then go back to topic 'Setting up of database'. The script removes TIFF files and clears DB entries. This can be useful for example when migrating from one DB engine to another.
+
+Setting up of a demo
+====================
+To test wms script with OpenLayers demo (or any other WMS client) you must have either BALTRAD data or FMI Open data in your DB.
+
+Copy or symlink demo directory to the directory or make it available for Web server. For example with Apache config you can do it like this:
+Alias /baltrad_demo/ /home/user/baltrad-wms/demo/
+<Directory "/home/user/baltrad-wms/demo">
+    Order allow,deny
+    Allow from all
+</Directory>
+
+Now your demo is available at http.//localhost/baltrad_demo/demo.html
+
+Edit demo.js and set variable wms_url (at the beginning of the code) to the URL of baltrad_wms script. It should be same as "online_resource" value in baltrad_wms.cfg file. You can't run demo locally because the application uses AJAX call to fetch timestamps and it's allowed only from the same domain for security reasons. If you try the demo locally you can only see the newest dataset.
+
+You can also test WMS service with Google Earth (see http://earth.google.com/support/bin/static.py?page=guide.cs&guide=22373&topic=22376&answer=148100#wms) or any other WMS client. Unfortunately time dimension is not suppoted by common WMS clients and then only the newest datasets is shown.
+
+Deployment examples
+===================
+The scripts update_baltrad_wms.py and fmi_open.py are designed to run as cron job. Deployment examples for both data types are explained below.
+
+If you install scripts to crontab set logging level to error or critical!
+
+BALTRAD deployment
+------------------
+The script update_baltrad_wms.py polls one directory where BALTRAD HDF5 files are located. So you have to setup somehow a constant data update and clean-up to this directory. In DB there is stored the initial file path of HDF5 file. If the file is already processed the script doesn't try to process the file again. 
+
+After you have constant data updater and cleaner you can add the cronjob. For example to run DB updater and cleaner every 5 minuts add this line to your crontab:
+#*/5 * * * * /home/user/baltrad-wms/update_baltrad_wms.py
+
+The script handles both updating and cleaning of your DB.
+
+FMI Open data deployment
+------------------------
+Unlike in the case of BALTRAD fmi_open.py script doesn't poll files but instead, reads the online WFS resource to check for new datasets. A list of datasets is in the beginning of the script and you can also add more of them. Only the most common ones are listed there. 
+
+To add FMI Open updater to your crontab just add the following line for example to run script every 5 minutes:
+#*/5 * * * * /home/user/baltrad-wms/fmi_open.py
+
+The script handles both updating and cleaning of your DB.
