@@ -66,7 +66,9 @@ def wms_request(req,settings):
             layers[l_name].template = "featureinfo.html"
             # set style class
             class_name_config = config.get(dataset_name, "style")
-            for class_values in config.items ( class_name_config ):
+            config_items = config.items ( class_name_config )
+            config_items.sort()
+            for class_values in config_items:
                 item = class_values[1].split (",")
                 c =  mapscript.classObj( layers[l_name] )
                 style = mapscript.styleObj(c)
