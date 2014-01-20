@@ -8,6 +8,14 @@ var layer;
 var layer_name;
 var first_update = true;
 var time_value; // current time
+// update every 5 minutes
+var updater = setInterval(update_times_and_refresh,300000);
+
+function update_times_and_refresh () {
+    update_meta (); 
+    document.getElementsByTagName("select")[1].selectedIndex = 0;
+    update_layer_params()
+}
 
 function init() {
     map = new OpenLayers.Map({
