@@ -62,6 +62,9 @@ def update():
         file_references = wfs_response.findall('.//{%s}fileReference' % gml_namespace)
         for ref in file_references:
             url = ref.text
+            # TODO: wait if this will be fixed someday
+            # Force WMS version 1.1.0 (1.3.0 is broken)
+            url = url.replace( "version=1.3.0", "version=1.1.0" )
             query = urllib2.urlparse.urlparse(url).query
             query = query.split("&")
             for q in query:
