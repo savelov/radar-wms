@@ -27,6 +27,8 @@ try: # Linux
     from osgeo import osr
     from osgeo.gdalconst import GDT_Float32
     from osgeo.gdalconst import GDT_Int16
+    from osgeo.gdalconst import GDT_Byte
+
 except ImportError: # Windows
     import gdal
     import osr
@@ -84,11 +86,11 @@ def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_typ
         lat_max = where.attrs["UR_lat"]
 
         # non-rectangle datasets not supported (are they ever produced?)
-        if ( where.attrs["LL_lon"]!=where.attrs["UL_lon"] or \
-                where.attrs["LL_lat"]!=where.attrs["LR_lat"] or \
-                where.attrs["LR_lon"]!=where.attrs["UR_lon"] or \
-                where.attrs["UL_lat"]!=where.attrs["UR_lat"] ):
-            raise Exception("non-rectangle datasets not supported")
+#        if ( where.attrs["LL_lon"]!=where.attrs["UL_lon"] or \
+#                where.attrs["LL_lat"]!=where.attrs["LR_lat"] or \
+#                where.attrs["LR_lon"]!=where.attrs["UR_lon"] or \
+#                where.attrs["UL_lat"]!=where.attrs["UR_lat"] ):
+#            raise Exception("non-rectangle datasets not supported")
 
         proj_text = str(where.attrs["projdef"])
         h5_proj = Proj(proj_text)
@@ -109,11 +111,12 @@ def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_typ
         #x_help_axis = numpy.arange( xmax,xmin,(xmin-xmax)/y_size ) # reverse this also
 
         missing_value = data_what.attrs["nodata"]
+        missing_echo = data_what.attrs["undetect"]
 
         if data_type=="int":
-            offset = int(data_what.attrs["offset"])
-            geotiff_data = numpy.int16(data) + numpy.int16(data_what.attrs["offset"])
-            geotiff_data[numpy.where(geotiff_data==(missing_value+offset))]=255
+            geotiff_data = numpy.uint8(data); 
+            geotiff_data[numpy.where(geotiff_data==(missing_echo))]=1
+            geotiff_data[numpy.where(geotiff_data==(missing_value))]=0
         else:
             offset = float(data_what.attrs["offset"])
             if first_iteration:
@@ -124,12 +127,12 @@ def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_typ
     # begin tiff file generation 
     driver = gdal.GetDriverByName('GTiff')
     if data_type=="int":
-        gdt_data_type = GDT_Int16
+        gdt_data_type = GDT_Byte
     else:
         gdt_data_type = GDT_Float32
     # geotiff mask array?
     out = driver.Create(geotiff_target, geotiff_data.shape[1], geotiff_data.shape[0], 1, gdt_data_type)
-    #out.SetMetadataItem("TIFFTAG_GDAL_NODATA",str(missing_value))
+#    out.SetMetadataItem("TIFFTAG_GDAL_NODATA",str(missing_value))
     out.SetMetadataItem("TIFFTAG_DATETIME",starttime.strftime("%Y-%m-%dT%H:%MZ"))
     #timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%MZ")
 
@@ -165,7 +168,7 @@ if __name__ == '__main__':
     try:
         hdf5_source = sys.argv[1]
         geotiff_target = sys.argv[2]
-        h5togeotiff(hdf5_source, geotiff_target, "dataset1/data2")
+        h5togeotiff(hdf5_source, geotiff_target, "dataset1/data1","int")
     except IndexError:
         print """\
 Usage

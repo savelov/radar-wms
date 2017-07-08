@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # MODIFY THIS
-config_path = "/home/user/baltrad-wms/baltrad_wms.cfg"
+config_path = "/home/Eugene/gimet-wms/baltrad_wms.cfg"
 #
 
 

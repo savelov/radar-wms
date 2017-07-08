@@ -3,12 +3,28 @@ MAP
   EXTENT -180 -90 180 90
   UNITS dd
   IMAGETYPE PNG
-  #DEBUG 5
+ # DEBUG 5
+ # CONFIG "CPL_DEBUG" "ON"
+ # CONFIG "PROJ_DEBUG" "ON"
+ # CONFIG "MS_ERRORFILE" "stderr"
   #CONFIG "MS_ERRORFILE" "/tmp/ms_error.txt"
   IMAGECOLOR 255 255 255
   MAXSIZE 4096
   STATUS ON
   TRANSPARENT ON
+  FONTSET "/usr/share/fonts/truetype/msttcorefonts/fonts.list"
+
+LEGEND
+   STATUS ON
+   KEYSIZE 16 10
+   TRANSPARENT ON
+   LABEL
+      TYPE TRUETYPE
+      FONT "Arial"
+      SIZE 8
+      COLOR 1 1 1
+   END
+END
 
   OUTPUTFORMAT
     NAME "AGG"

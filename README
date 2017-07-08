@@ -6,7 +6,7 @@ Dependencies
 ------------
 * Python version 2.6 or higher
 * SqlAlchemy (http://www.sqlalchemy.org/
-* Mapserver version 6 or later with Python bindings (http://mapserver.org/)
+* Mapserver version 6 or later with Python bindings (http://mapserver.org/)   (python-mapscript)
 * h5py (http://code.google.com/p/h5py/)
 * pyproj (http://code.google.com/p/pyproj/)
 * numpy (http://numpy.scipy.org/)

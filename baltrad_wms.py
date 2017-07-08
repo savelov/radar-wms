@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 # read config
 import ConfigParser
 from configurator import *
@@ -77,7 +76,7 @@ def wms_request(req,settings):
                     processing.append(item[1])
                     style.width = 2     
                     style.color.setRGB( 0,0,0 )
-                    processing.append(item[1])
+#                    processing.append(item[1])
                 else:
                     c.name = class_values[0]
                     c.title = item[0]
@@ -135,11 +134,14 @@ def wms_request(req,settings):
             radar_dataset = session.query(RadarDataset)\
                     .filter(RadarDataset.name==get_query_layer(layer_name))\
                     .order_by(RadarDataset.timestamp.desc()).all()
+	    if len(radar_dataset)==0 : 
+		continue
             layers[layer_name].data = radar_dataset[0].geotiff_path
             layers[layer_name].setProjection( radar_dataset[0].projdef )
             bbox =  map(float,radar_dataset[0].bbox_original.split(",") )
             layers[layer_name].setExtent( *bbox )
     session.close()
+#    map_object.save("mymapfile.map")
     return map_object
 
 if __name__ == '__main__': # CGI

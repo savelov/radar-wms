@@ -1,13 +1,28 @@
 #!/usr/bin/env python
 # script fetches FMI Open data and imports it to DB
 from quicklock import singleton
-singleton('fmi_open')
-
+singleton('get_single')
 
 from db_setup import *
 from cleaner import *
 import ConfigParser
 from configurator import *
+import os.path
+
+import fcntl
+# RunAlone part -->
+_lock_handle = 0 # it must be global to prevent early closing due to GC
+def run_once():
+    global _lock_handle
+    _lock_handle = open(os.path.realpath(__file__), 'r+')
+    try:
+        fcntl.flock(_lock_handle, fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except:
+        print >>sys.stderr, 'Already running!'
+        os._exit(0)
+
+run_once()
+# <-- RunAlone part end
 
 
 tiff_dir_base = config.get("locations","wms_data_dir")
@@ -24,14 +39,15 @@ gml_namespace = "http://www.opengis.net/gml/3.2"
 
 # sections in config file must match with layer names
 wfs_layers = {
-    'fmi_open_composite_dbz': 
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::dbz',
-    'fmi_open_composite_rr1h':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::rr1h',
-    'fmi_open_composite_rr24h':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::rr24h',
-    'fmi_open_composite_rr':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::rr'
+    'fmi_radar_single_dbz':
+    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::dbz',
+    'fmi_radar_single_vrad':
+    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::vrad',
+    'fmi_radar_single_etop_20':
+    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::etop_20',
+    'fmi_radar_single_hclass':
+    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::hclass'
+
 }
 
 
@@ -75,22 +91,22 @@ def update():
                     projdef = q.split("=")[-1]
                 elif q[0:4].lower()=="bbox":
                     bbox = q.split("=")[-1]
+                elif q[0:6].lower()=="layers":
+                    radar_name = q.split("=")[-1]
+                elif q[0:9].lower()=="elevation":
+                    radar_elevation = q.split("=")[-1]
             timestamp = datetime.strptime(time_value,\
                     "%Y-%m-%dT%H:%M:%SZ")
-            if ( timestamp<read_expiration_time(int( config.get(section,"cleanup_time") )) ):
-                # do not store old files
-                logger.debug ( "Skip expired dataset %s:%s" % (layer,str(timestamp)))
-                continue
             # search if dataset already exists
-            radar_datasets = session.query(RadarDataset)\
-                    .filter(RadarDataset.timestamp==timestamp)\
-                    .filter(RadarDataset.name==layer)
+	    if (radar_name.split("_")[0] != "Radar:kesalahti") :
+		continue
+	    if (layer!='fmi_radar_single_etop_20' and float(radar_elevation) > 0.5) :
+		continue
+            output_filename = tiff_dir + "/" + radar_name.replace("Radar:","")+ time_value.replace(":","")\
+                .replace("-","") + "_"+radar_elevation+ ".tif"
             # skip file fetching if it already exists
-            if radar_datasets.count()>0:
-                logger.debug ( "Dataset %s:%s already in database" % (layer,str(timestamp) ) )
-                continue
-            output_filename = tiff_dir + "/" + time_value.replace(":","")\
-                    .replace("-","") + ".tif"
+	    if os.path.isfile(output_filename):
+		continue
             # save file to disk
             try:
                 response = urllib2.urlopen( url )

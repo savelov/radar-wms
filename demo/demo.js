@@ -1,74 +1,120 @@
-var wms_url = "/baltrad/baltrad_wms.py";
-// var wms_url = "/baltrad_wsgi";
-var wms_tools_url = "/baltrad/baltrad_wms_tools.py";
+//var wms_url = "/baltrad/baltrad_wms.py";
+var wms_url = "/baltrad_wsgi";
+//var wms_url = "http://localhost:8081";
+var wms_tools_url = "/baltrad_tools_wsgi";
 
 /* do not edit anything below this */
 var map;
-var layer;
+var wmsLayer;
+var lineLayer;
 var layer_name;
 var first_update = true;
-var time_value; // current time
-// update every 5 minutes
-var updater = setInterval(update_times_and_refresh,300000);
+var time_value = null; // current time
+// update every 1 minutes
+var updater = setInterval(update_times_and_refresh,60000);
+
+var bearing=45;
+var interval_id=0;
+
 
 function update_times_and_refresh () {
-    update_meta (); 
-    document.getElementsByTagName("select")[1].selectedIndex = 0;
-    update_layer_params()
+    if (document.getElementsByTagName("input")[0].checked) {
+	update_meta (); 
+	document.getElementsByTagName("select")[1].selectedIndex = 0;
+	update_layer_params();
+    }
 }
 
+function movie (direction) {
+
+    if (interval_id!=0) {
+        window.clearInterval(interval_id);
+        interval_id=0;
+    }
+
+    if (direction=="up" || direction=="down")
+        interval_id=window.setInterval(function() { go(direction); },1000);
+
+}
+
+function destination(lng, lat, dist, heading) {
+
+var R=6371;
+
+    lat *= Math.PI / 180;
+    lng *= Math.PI / 180;
+    heading *= Math.PI / 180;
+
+    var lat2 = Math.asin( Math.sin(lat)*Math.cos(dist/R) +
+                    Math.cos(lat)*Math.sin(dist/R)*Math.cos(heading) );
+    var lng2 = lng + Math.atan2(Math.sin(heading)*Math.sin(dist/R)*Math.cos(lat),
+                         Math.cos(dist/R)-Math.sin(lat)*Math.sin(lat2));
+
+      return [180 / Math.PI * lng2, 180 / Math.PI * lat2 ];
+
+}
+
+
 function init() {
-    map = new OpenLayers.Map({
-        div: "map",
-        projection: new OpenLayers.Projection("EPSG:3857"),
-        units: "m",
-        maxResolution: 156543.0339,
-        maxExtent: new OpenLayers.Bounds(
-            -20037508, -20037508, 20037508, 20037508.34
-        )
-    });
-    
-    var osm = new OpenLayers.Layer.OSM();            
-    var gmap = new OpenLayers.Layer.Google("Google Streets");
-    
-    map.addLayers([osm, gmap]);
 
-    map.addControl(new OpenLayers.Control.LayerSwitcher());
+      layer_name = document.getElementsByTagName("select")[0].value;
 
-    map.setCenter(
-        new OpenLayers.LonLat(20, 65).transform(
-            new OpenLayers.Projection("EPSG:4326"),
-            map.getProjectionObject()
-        ), 
-        4
-    );
+      var wmsSource = new ol.source.ImageWMS({
+        url: wms_url,
+        params: {'LAYERS': layer_name},
+        ratio: 1,
+        serverType: 'geoserver'
+      });
 
-    layer_name = document.getElementsByTagName("select")[0].value;
+      wmsLayer = new ol.layer.Image({
+	  opacity : 0.6,
+          source: wmsSource
+      });
 
-    layer = new OpenLayers.Layer.WMS(
-        "Radar",
-        wms_url,
-        {layers: layer_name, transparent: 'true', format: 'image/png', time: "-1"},
-        {isBaseLayer: false,singleTile: true, buffer: 0} );
-    map.addLayer(layer);
 
-    map.events.register('click', map, findLayerClick);
+      var source = new ol.source.Vector();
+
+
+      lineLayer = new ol.layer.Vector({
+	style: new ol.style.Style({
+    	    fill: new ol.style.Fill({ color: '#000000', weight: 4 }),
+    	    stroke: new ol.style.Stroke({ color: '#000000', width: 2 })
+	}),
+        source: source
+      });
+
+      var view = new ol.View({
+          center: ol.proj.fromLonLat([37.4, 55.6]),
+          zoom: 6
+      });
+
+      var map = new ol.Map({
+        layers: [ new ol.layer.Tile({ source: new ol.source.OSM() }), wmsLayer, lineLayer],
+        target: 'map',
+        view: view
+      });
+
+        zoomslider = new ol.control.ZoomSlider();
+        map.addControl(zoomslider);
+//    map.addControl(new OpenLayers.Control.LayerSwitcher());
+
+
+//    map.events.register('click', map, findLayerClick);
 
     update_meta();
+    update_layer_params();
 
 }
 
 function update_meta () {
-    OpenLayers.Request.GET({
-        url: wms_url,
-        async: false,
-        params: {
-            SERVICE: "WMS",
-            VERSION: "1.1.1",
-            REQUEST: "GetCapabilities"
-        },
-        success: function(request) {
-            var doc = StringToXML(request.responseText);
+
+    var xmlhttp = new XMLHttpRequest();
+    var url = wms_url+'?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetCapabilities';
+
+    xmlhttp.onreadystatechange = function() {
+    if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+
+            var doc = StringToXML(xmlhttp.responseText);
             var layers = doc.getElementsByTagName("Layer")[0].getElementsByTagName("Layer");
             for (i=0;i<layers.length;i++) {
                 if (layers[i].getElementsByTagName("Name")[0].childNodes[0].nodeValue.split(",")[0]==layer_name) {
@@ -88,29 +134,73 @@ function update_meta () {
                     time_value = document.getElementsByTagName("select")[1].value;
                 }
             }
-        }, 
-        failure: function() {
-            alert("Trouble getting capabilities doc");
-            OpenLayers.Console.error.apply(OpenLayers.Console, arguments);
-        }
-    });
+
+        } 
+//        else  {
+//            alert("Trouble getting capabilities doc");
+//        OpenLayers.Console.error.apply(OpenLayers.Console, arguments);
+//        }
+    };
+
+
+    xmlhttp.open("GET", url, true);
+    xmlhttp.send();
 }
 
 function update_layer_params() {
     var new_layer = document.getElementsByTagName("select")[0].value;
-    time_value = document.getElementsByTagName("select")[1].value;
+    var new_time_value = document.getElementsByTagName("select")[1].value;
     if (new_layer!=layer_name) {
         layer_name = new_layer;
         update_meta();
     }
-    layer.mergeNewParams({time: time_value,layers:layer_name});
+    time_value=new_time_value;
+    wmsLayer.getSource().updateParams({'TIME': time_value,'LAYERS': layer_name});
+    document.getElementsByTagName("select")[1].value=new_time_value;
+
+    var xmlhttp = new XMLHttpRequest();
+    var url = '/vector_wsgi?time='+time_value+'&title='+layer_name;
+
+    xmlhttp.onreadystatechange = function() {
+    if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+	lineLayer.getSource().clear();
+
+	var myArr = JSON.parse(xmlhttp.responseText);
+        var features = new Array(myArr.length);
+
+	for (var i=0; i<myArr.length; i++) {
+	    var lat = myArr[i][0];
+	    var lon = myArr[i][1];
+	    var dist= myArr[i][2]*3.6;
+	    var head= myArr[i][3];
+
+
+	    var points=[[lon,lat],destination(lon, lat, dist, head)];
+	    for (var j = 0; j < points.length; j++) {
+		points[j] = ol.proj.transform(points[j], 'EPSG:4326', 'EPSG:3857');
+	    }
+	    features[i] = new ol.Feature({
+		geometry: new ol.geom.LineString(points)
+	    });
+
+	}
+    	lineLayer.getSource().addFeatures(features);
+    }
+    };
+
+    xmlhttp.open("GET", url, true);
+    xmlhttp.send();
+
 }
 
 function go(direction) {
-    if (direction=="down")
+    var current_index=document.getElementsByTagName("select")[1].selectedIndex;
+
+    if (direction=="down" && current_index<document.getElementsByTagName("select")[1].length-1)
         document.getElementsByTagName("select")[1].selectedIndex++;
-    else if (direction=="up")
+    else if (direction=="up" && current_index>0)
         document.getElementsByTagName("select")[1].selectedIndex--;
+    else movie('stop');
     update_layer_params();
 }
 

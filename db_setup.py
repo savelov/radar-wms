@@ -6,9 +6,13 @@ settings = read_config()
 from sqlalchemy import *
 from sqlalchemy.orm import *
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.pool import StaticPool
+
 from datetime import datetime
 
-engine = create_engine( settings["db_uri"], echo=False)
+engine = create_engine( settings["db_uri"], echo=False,
+                    connect_args={'check_same_thread':False},
+                    poolclass=StaticPool)
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -18,7 +22,7 @@ Base = declarative_base(metadata=metadata)
 class RadarDataset(Base):
     __tablename__ = "radar_dataset"
     id = Column(Integer, primary_key=True)
-    name = Column(String(50), nullable=False)
+    name = Column(String(50), index=True)
     title = Column(String(300), nullable=False)
     timestamp = Column(DateTime,index=True)
     geotiff_path = Column(String(500),nullable=False)

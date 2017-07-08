@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Radar composite animation</title>
+    <link rel="stylesheet" href="https://openlayers.org/en/v4.1.1/css/ol.css" type="text/css">
+    <!-- The line below is only needed for old environments like Internet Explorer and Android 4.x -->
+    <script src="https://cdn.polyfill.io/v2/polyfill.min.js?features=requestAnimationFrame,Element.prototype.classList,URL"></script>
+    <script src="https://openlayers.org/en/v4.1.1/build/ol.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+    <script src="http://code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+  </head>
+  <body>
+    <div id="map" class="map"></div>
+    <div role="group" aria-label="Animation controls">
+      <button id="play" type="button">Play</button>
+      <button id="pause" type="button">Pause</button>
+      <span id="info"></span>
+    </div>
+    <script>
+
+$.getJSON("http://www.nowcast.ru/demo/viz/tiles.json", function(data) {
+    var tiles = [];
+    $.each(data, function(timestamp, path) {
+	tiles.push({
+	    label: timestamp.slice(-5),
+	    timestamp: new Date (timestamp),
+	    path: path
+	});
+    });
+
+//      var extent = ol.proj.transformExtent([-126, 24, -66, 50], 'EPSG:4326', 'EPSG:3857');
+      var extent =  [1458013.91793, 4886620.07628, 7892013.91793, 10018620.0763];
+
+      var startDate = tiles[0].timestamp;
+      var tile_num=0;
+      var frameRate = 2; // frames per second
+      var animationId = null;
+
+      var layers = [
+        new ol.layer.Tile({
+          source: new ol.source.OSM()
+        }),
+        new ol.layer.Image({
+	  opacity : 0.6,
+          source: new ol.source.ImageStatic({
+            url: 'http://www.nowcast.ru/demo/viz/'+tiles[tile_num].path,
+	    imageExtent: extent,
+	    projection: 'EPSG:3857'
+          })
+        }),
+	new ol.layer.Image({
+	  opacity : 0.6,
+          source: new ol.source.ImageWMS({
+            url: 'http://www.nowcast.ru/baltrad_wsgi',
+            params: {'LAYERS': 'fmi_open_composite_dbz'},
+            ratio: 1,
+            serverType: 'geoserver'
+          })
+        }),
+      new ol.layer.Vector({
+	style: new ol.style.Style({
+    	    fill: new ol.style.Fill({ color: '#000000', weight: 4 }),
+    	    stroke: new ol.style.Stroke({ color: '#000000', width: 2 })
+	}),
+        source: new ol.source.Vector()
+      })
+
+      ];
+
+      var map = new ol.Map({
+        layers: layers,
+        target: 'map',
+        view: new ol.View({
+          center: ol.extent.getCenter(extent),
+          zoom: 5
+        })
+      });
+
+      function updateInfo() {
+        var el = document.getElementById('info');
+        el.innerHTML = startDate.toISOString();
+      }
+
+function destination(lng, lat, dist, heading) {
+
+var R=6371;
+
+    lat *= Math.PI / 180;
+    lng *= Math.PI / 180;
+    heading *= Math.PI / 180;
+
+    var lat2 = Math.asin( Math.sin(lat)*Math.cos(dist/R) +
+                    Math.cos(lat)*Math.sin(dist/R)*Math.cos(heading) );
+    var lng2 = lng + Math.atan2(Math.sin(heading)*Math.sin(dist/R)*Math.cos(lat),
+                         Math.cos(dist/R)-Math.sin(lat)*Math.sin(lat2));
+
+      return [180 / Math.PI * lng2, 180 / Math.PI * lat2 ];
+
+}
+
+
+      function setTime() {
+	tile_num++;
+	if (tile_num > tiles.length-1) tile_num=0;
+	startDate=tiles[tile_num].timestamp;
+        layers[1].setSource(new ol.source.ImageStatic({
+            url: 'http://www.nowcast.ru/demo/viz/'+tiles[tile_num].path,
+	    imageExtent: extent,
+	    projection: 'EPSG:3857'
+          }) );
+	layers[2].getSource().updateParams({'TIME': startDate.toISOString().slice(0,-5)+'Z'});
+
+    var xmlhttp = new XMLHttpRequest();
+    var url = 'http://www.nowcast.ru/vector_wsgi?time='+startDate.toISOString().slice(0,-5)+'Z&title=test';
+
+    xmlhttp.onreadystatechange = function() {
+    if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+	layers[3].getSource().clear();
+
+	var myArr = JSON.parse(xmlhttp.responseText);
+        var features = new Array(myArr.length);
+
+	for (var i=0; i<myArr.length; i++) {
+	    var lat = myArr[i][0];
+	    var lon = myArr[i][1];
+	    var dist= myArr[i][2]*3.6;
+	    var head= myArr[i][3];
+
+
+	    var points=[[lon,lat],destination(lon, lat, dist, head)];
+	    for (var j = 0; j < points.length; j++) {
+		points[j] = ol.proj.transform(points[j], 'EPSG:4326', 'EPSG:3857');
+	    }
+	    features[i] = new ol.Feature({
+		geometry: new ol.geom.LineString(points)
+	    });
+
+	}
+    	layers[3].getSource().addFeatures(features);
+    }
+    };
+
+    xmlhttp.open("GET", url, true);
+    xmlhttp.send();
+
+        updateInfo();
+      }
+      setTime();
+
+      var stop = function() {
+        if (animationId !== null) {
+          window.clearInterval(animationId);
+          animationId = null;
+        }
+      };
+
+      var play = function() {
+        stop();
+        animationId = window.setInterval(setTime, 1000 / frameRate);
+      };
+
+      var startButton = document.getElementById('play');
+      startButton.addEventListener('click', play, false);
+
+      var stopButton = document.getElementById('pause');
+      stopButton.addEventListener('click', stop, false);
+
+      updateInfo();
+})
+    </script>
+  </body>
+</html>
