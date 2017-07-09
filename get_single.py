@@ -9,21 +9,6 @@ import ConfigParser
 from configurator import *
 import os.path
 
-import fcntl
-# RunAlone part -->
-_lock_handle = 0 # it must be global to prevent early closing due to GC
-def run_once():
-    global _lock_handle
-    _lock_handle = open(os.path.realpath(__file__), 'r+')
-    try:
-        fcntl.flock(_lock_handle, fcntl.LOCK_EX|fcntl.LOCK_NB)
-    except:
-        print >>sys.stderr, 'Already running!'
-        os._exit(0)
-
-run_once()
-# <-- RunAlone part end
-
 
 tiff_dir_base = config.get("locations","wms_data_dir")
 api_key = config.get( "settings","fmi_api_key")
