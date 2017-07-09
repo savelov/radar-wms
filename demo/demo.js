@@ -1,6 +1,5 @@
-//var wms_url = "/baltrad/baltrad_wms.py";
-var wms_url = "/baltrad_wsgi";
-//var wms_url = "http://localhost:8081";
+//var wms_url = "/baltrad_wsgi";
+var wms_url = "http://localhost:8081";
 var wms_tools_url = "/baltrad_tools_wsgi";
 
 /* do not edit anything below this */
