@@ -1,9 +1,9 @@
 [locations]
-db_uri = sqlite:////home/user/baltrad-wms/radar_datasets.db
-baltrad_data_dir = /home/user/baltrad_data
-wms_data_dir =/home/user/baltrad_wms_data
-mapfile = /home/user/baltrad-wms/baltrad_wms.map
-online_resource = http://localhost:8080/
+db_uri = sqlite:////home/eugene/radar-wms/radar_datasets.db
+baltrad_data_dir = /home/eugene/baltrad_files
+wms_data_dir =/home/eugene/baltrad_wms_data
+mapfile = /home/eugene/radar-wms/baltrad_wms.map
+online_resource= http://localhost:8081
 tmpdir = /tmp
 
 [settings]
@@ -17,17 +17,197 @@ level = debug
 
 [Radar_dbzh_style]
 # SYNTAX: number = name,from,to,R,G,B
-01 = dBZ,201,299,204,204,204
-02 = very heavy,180,201,250,81,165
-03 = very heavy,168,180,131,10,70
-04 = very heavy,156,168,206,2,2
-05 = very heavy,144,156,232,86,22
-06 = very heavy,132,144,235,149,26
-07 = very heavy,124,132,223,196,10
-08 = heavy,112,124,241,243,90
-09 = heavy,100,112,64,152,87
-10 = moderate,88,100,88,199,151
-11 = moderate,80,88,108,235,243
+00 =  empty, 0, 1, 128, 128, 128
+01 = -30 dBZ, 1, 50, 220, 220, 220
+02 = -10 dBZ, 50, 62, 167, 167, 167
+03 = -5 dBZ, 62, 75, 171, 210, 235
+04 = 0 dBZ, 75, 87, 206, 255, 153
+05 = 5 dBZ, 87, 100, 84, 255, 58
+06 = 10 dBZ, 100, 112, 0, 170, 255
+07 = 15 dBZ, 112, 125, 1, 77, 255
+08 = 20 dBZ, 125, 137, 0, 0, 207
+09 = 25 dBZ, 137, 150, 0, 0, 127
+10 = 30 dBZ, 150, 162, 255, 255, 0
+11 = 35 dBZ, 162, 175, 255, 128, 0
+12 = 40 dBZ, 175, 187, 255, 61, 55
+13 = 45 dBZ, 187, 200, 255, 0, 0
+14 = 50 dBZ, 200, 212, 73, 221, 0
+15 = 55 dBZ, 212, 225, 0, 170, 0
+16 = 60 dBZ, 225, 237, 245, 0, 245
+17 = 65 dBZ, 237, 250, 170, 0, 255
+18 = 70 dBZ, 250, 299, 113, 0, 0
+
+[Gimet_dbzh_style]
+# SYNTAX: number = name,from,to,R,G,B
+00 = нет данных, -1, 0, 128, 128, 128
+01 = -30 dbZ, 1, 44, 220, 220, 220
+02= -10 dBZ, 44, 54, 167, 167, 167
+03 = -5 dBZ, 54, 64, 171, 210, 235
+04 = 0 dBZ, 64, 74, 206, 255, 153
+05 = 5 dBZ, 74, 84, 84, 255, 58
+06 = 10 dBZ, 84, 94, 0, 170, 255
+07 = 15 dBZ, 94, 104, 1, 77, 255
+08 = 20 dBZ, 104, 114, 0, 0, 207
+09 = 25 dBZ, 114, 124, 0, 0, 127
+10 = 30 dBZ, 124, 134, 255, 255, 0
+11 = 35 dBZ, 134, 144, 255, 128, 0
+12 = 40 dBZ, 144, 154, 255, 61, 55
+13 = 45 dBZ, 154, 164, 255, 0, 0
+14 = 50 dBZ, 164, 174, 73, 221, 0
+15 = 55 dBZ, 174, 184, 0, 170, 0
+16 = 60 dBZ, 184, 194, 245, 0, 245
+17 = 65 dBZ, 194, 204, 170, 0, 255
+18 = 70 dBZ, 204, 214, 113, 0, 0
+
+[Gimet_summ_style]
+# SYNTAX: number = name,from,to,R,G,B
+00 = нет данных, -1, 0, 128, 128, 128
+01 = 0.05 мм, 1, 10, 255, 170, 255
+02 = 0.1 мм, 10, 25, 208, 232, 255
+03 = 0.3 мм, 25, 49,  0, 170, 255
+04 = 0.5 мм, 49, 61, 0,  76, 255
+05 = 1.0 мм, 61, 76, 0,   0, 197
+06 = 2.0 мм, 76, 91, 0,   0, 127
+07 = 3.0 мм, 91, 100, 255, 255,   0
+08 = 5.0 мм, 100, 112, 255, 128,   1
+09 = 7.0 мм, 112, 119, 229,  74,  12
+10 = 10 мм, 119, 127, 255,   0,   0
+11 = 20 мм, 127, 142, 0, 190,   0
+12 = 30 мм, 142, 151, 0, 117,   0
+13 = 50 мм, 151, 163, 255,   0, 255
+14 = 100 мм, 163, 178, 203,   0, 156
+15 = 200 мм, 178, 193, 170,   0, 127
+17 = 300 мм, 193, 202, 0,  0,   0
+18 = 500 мм, 202, 214, 162, 101, 166
+19 = >500 мм, 214, 255, 112,  83, 113
+
+[Gimet_precip_style]
+# SYNTAX: number = name,from,to,R,G,B
+00 = нет данных, -1, 0, 128, 128, 128
+01=0.10 мм/ч,1,78,155,155,155
+02=0.30 мм/ч,78,93,135,135,135
+03=0.50 мм/ч,93,100,0,85,255
+04=1.00 мм/ч,100,110,0,0,127
+05=3.00 мм/ч,110,125,255,255,0
+06=5.00 мм/ч,125,132,200,239,4
+07=7.00 мм/ч,132,137,255,170,0
+08=10.00 мм/ч,137,142,255,85,0
+09=20.00 мм/ч,142,151,255,0,0
+10=30.00 мм/ч,151,157,128,255,128
+11=50.00 мм/ч,157,164,0,170,0
+12=100.00 мм/ч,164,174,255,131,245
+13=>100 мм/ч,174,255,208,0,208
+
+
+[Gimet_phenomena_style]
+# SYNTAX: number = name,from,to,R,G,B
+00 = нет данных, 254, 255, 128, 128, 128
+01 = обл. сред. яруса, 0, 1, 156, 170, 177
+02 = сл. образования, 1, 2, 162, 198, 255
+03 = осадки слабые, 2, 3, 70, 255, 147
+04 = осадки умеренные, 3, 4, 0, 194,  90
+05 = осадки сильные, 4, 5, 0, 152, 0
+06 = кучевая обл, 5, 6, 255, 255, 128
+07 = ливень слабый, 6, 7, 62, 136, 255
+08 = ливень умеренный, 7, 8, 1, 56, 255
+09 = ливень сильный, 8, 9, 0, 0, 116
+10 = гроза (R), 9,10, 255,170,127
+11 = гроза R),10,11, 255, 85,127
+12 = гроза R, 11, 12, 255,  0,  0
+13 = град слабый, 12,13, 204, 102,  0
+14 = град умеренный, 13,14,136,  68,   0
+15 = град сильный, 14,15, 95,  0,  0
+16 = шквал сильный, 15,16, 255, 170, 255
+17 = шква умеренный, 16,17 ,255, 85, 255
+18 = шквал сильный, 17,18, 199, 0, 199
+19 = смерч ,18,19, 63, 63,  95
+
+[Gimet_zdr_style]
+00=нет данных,254,255,128,128,128
+01=-5.00 dB,1,78,33,40,148
+02=-4.00 dB,78,88,15,83,128
+03=-3.00 dB,88,98,29,191,255
+04=-2.50 dB,98,103,47,221,255
+05=-2.00 dB,103,108,114,255,251
+06=-1.00 dB,108,118,115,255,136
+07=-0.50 dB,118,123,123,184,69
+08=0.00 dB,123,128,0,134,0
+09=0.50 dB,128,133,254,225,0
+10=1.00 dB,133,138,223,192,77
+11=1.50 dB,138,143,211,152,2
+12=2.00 dB,143,148,254,169,166
+13=2.50 dB,148,153,231,89,79
+14=3.00 dB,153,158,248,22,1
+15=3.50 dB,158,163,186,11,11
+16=4.00 dB,163,168,190,150,174
+17=5.00 dB,168,178,127,89,106
+18=>5dB,178,254,145,52,144
+
+[Gimet_height_style]
+00=нет данных,-1,0,128,128,128
+01=0.00 км,1,4,7,254,164
+02=0.20 км,4,7,27,243,107
+03=0.50 км,7,12,27,191,128
+04=1.00 км,12,22,34,149,112
+05=2.00 км,22,32,37,113,100
+06=3.00 км,32,42,22,65,55
+07=4.00 км,42,52,0,204,235
+08=5.00 км,52,62,3,135,229
+09=6.00 км,62,72,3,54,206
+10=7.00 км,72,82,5,22,109
+11=8.00 км,82,92,211,181,31
+12=9.00 км,92,102,217,74,27
+13=10.00 км,102,112,216,27,17
+14=11.00 км,112,122,132,5,11
+15=12.00 км,122,132,67,168,4
+16=13.00 км,132,142,3,63,3
+17=14.00 км,142,152,161,17,72
+18=15.00 км,152,224,218,47,158
+
+[Gimet_velocity_style]
+00=нет данных,-1,0,128,128,128
+01=<-50 м/с,1,27,0,0,0
+02=-50.00 м/с,27,48,85,179,207
+03=-40.00 м/с,48,68,71,135,158
+04=-30.00 м/с,68,78,33,81,32
+05=-25.00 м/с,78,88,53,127,32
+06=-20.00 м/с,88,98,0,179,0
+07=-15.00 м/с,98,108,51,216,51
+08=-10.00 м/с,108,118,79,248,73
+09=-5.00 м/с,118,127,155,203,171
+10=-0.50 м/с,127,128,187,252,218
+11=0.00 м/с,128,129,255,255,255
+12=0.50 м/с,129,138,254,0,254
+13=5.00 м/с,138,148,177,0,177
+14=10.00 м/с,148,158,125,0,125
+15=15.00 м/с,158,167,147,0,0
+16=20.00 м/с,167,178,179,0,0
+17=25.00 м/с,178,188,204,0,0
+18=30.00 м/с,188,198,236,0,0
+19=35.00 м/с,198,228,255,60,60
+20=50.00 м/с,228,254,255,121,111
+
+[FMI_dbzh_style]
+# SYNTAX: number = name,from,to,R,G,B
+00 = no data,250,299,204,204,204
+01 = -30..-10 dbZ, 4, 44, 220, 220, 220
+02 = -10..-5 dBZ, 44, 54, 167, 167, 167
+03 = -5..0 dBZ, 54, 64, 171, 210, 235
+04 = 0..5 dBZ, 64, 74, 206, 255, 153
+05 = 5..10 dBZ, 74, 84, 84, 255, 58
+06 = 10..15 dBZ, 84, 94, 0, 170, 255
+07 = 15..20 dBZ, 94, 104, 1, 77, 255
+08 = 20..25 dBZ, 104, 114, 0, 0, 207
+09 = 25..30 dBZ, 114, 124, 0, 0, 127
+10 = 30..35 dBZ, 124, 134, 255, 255, 0
+11 = 35..40 dBZ, 134, 144, 255, 128, 0
+12 = 40..45 dBZ, 144, 154, 255, 61, 55
+13 = 45..50 dBZ, 154, 164, 255, 0, 0
+14 = 50..55 dBZ, 164, 174, 73, 221, 0
+15 = 55..60 dBZ, 174, 184, 0, 170, 0
+16 = 60..65 dBZ, 184, 194, 245, 0, 245
+17 = 65..70 dBZ, 194, 204, 170, 0, 255
+18 = >70 dBZ, 204, 214, 113, 0, 0
 
 [Radar_mmh_style]
 01 = ,63,999,204,204,204
@@ -152,20 +332,28 @@ style = Radar_dbzh_style
 cleanup_time = 120
 
 [dataset_2]
-name = baltrad_mmh
-title = BALTRAD Radar (mm/h)
-dataset_type = hdf
-hdf_dataset = dataset1/data2
-unit = mm/h
-style = Radar_mmh_style
+name = gimet_dbz
+title = GIMET Reflectivity (dbz)
+dataset_type = geotiff
+unit = dBZ
+style = Gimet_dbzh_style
 cleanup_time = 120
+
+#[dataset_2]
+#name = baltrad_mmh
+#title = BALTRAD Radar (mm/h)
+#dataset_type = hdf
+#hdf_dataset = dataset1/data2
+#unit = mm/h
+#style = Radar_mmh_style
+#cleanup_time = 120
 
 [dataset_3]
 name = fmi_open_composite_dbz 
 title = FMI Open Radar (dBZH)
 dataset_type = geotiff
 unit = dBZ 
-style = Radar_dbzh_style
+style = FMI_dbzh_style
 cleanup_time = 48
 
 [dataset_4]
@@ -199,3 +387,260 @@ dataset_type = geotiff
 unit = mm
 style = FMI_Radar_accumulated_style
 cleanup_time = 120
+
+[dataset_8]
+name = gimet_phenomena
+title = Опасные явления
+dataset_type = geotiff
+unit = code
+style = Gimet_phenomena_style
+cleanup_time = 120
+
+[dataset_9]
+name = gimet_summ
+title = Сумма осадков 12 час
+dataset_type = geotiff
+unit = code
+style = Gimet_summ_style
+cleanup_time = 120
+
+[dataset_10]
+name = gimet_precip
+title = Интенсивность осадков
+dataset_type = geotiff
+unit = code
+style = Gimet_precip_style
+cleanup_time = 120
+
+[dataset_11]
+name = gimet_zdr
+title = Дифф отражаемость
+dataset_type = geotiff
+unit = code
+style = Gimet_zdr_style
+cleanup_time = 120
+
+[dataset_12]
+name = gimet_height
+title = Высота ВГО
+dataset_type = geotiff
+unit = code
+style = Gimet_height_style
+cleanup_time = 120
+
+[dataset_13]
+name = bufr_phenomena
+title = Опасные явления BUFR
+dataset_type = geotiff
+unit = code
+style = Gimet_phenomena_style
+cleanup_time = 120
+
+[dataset_14]
+name = bufr_dbz1
+title = Отражаемость 1км
+dataset_type = geotiff
+unit = code
+style = Gimet_dbzh_style
+cleanup_time = 120
+
+[dataset_15]
+name = bufr_height
+title = Высота верхней границы облачности
+dataset_type = geotiff
+unit = code
+style = Gimet_height_style
+cleanup_time = 120
+
+[dataset_16]
+name = bufr_zdr1
+title = Дифф отражаемость
+dataset_type = geotiff
+unit = code
+style = Gimet_zdr_style
+cleanup_time = 120
+
+[dataset_17]
+name = bufr_summ12
+title = Сумма 12ч
+dataset_type = geotiff
+unit = code
+style = Gimet_summ_style
+cleanup_time = 120
+
+[dataset_18]
+name = bufr_vel1
+title = доплеровская скорость
+dataset_type = geotiff
+unit = code
+style = Gimet_velocity_style
+cleanup_time = 120
+
+[dataset_19]
+name = gimet_velocity
+title = доплеровская скорость
+dataset_type = geotiff
+unit = code
+style = Gimet_velocity_style
+cleanup_time = 120
+
+[dataset_20]
+name = bufr_vel2
+title = доплеровская скорость
+dataset_type = geotiff
+unit = code
+style = Gimet_velocity_style
+cleanup_time = 120
+
+[dataset_21]
+name = bufr_vel3
+title = доплеровская скорость
+dataset_type = geotiff
+unit = code
+style = Gimet_velocity_style
+cleanup_time = 120
+
+[dataset_22]
+name = bufr_vel4
+title = доплеровская скорость
+dataset_type = geotiff
+unit = code
+style = Gimet_velocity_style
+cleanup_time = 120
+
+[dataset_23]
+name = bufr_precip
+title = интенсивность осадков
+dataset_type = geotiff
+unit = code
+style = Gimet_precip_style
+cleanup_time = 120
+
+[dataset_24]
+name = fmi_radar_single_dbz 
+title = FMI Open Radar (dBZH)
+dataset_type = geotiff
+unit = dBZ 
+style = FMI_dbzh_style
+cleanup_time = 48
+
+[dataset_25]
+name = fmi_radar_single_vrad
+title = FMI Open Radar (m/s)
+dataset_type = geotiff
+unit = m/s
+style = Gimet_velocity_style
+cleanup_time = 48
+
+[dataset_26]
+name = fmi_radar_single_hclass
+title = FMI Open Radar Hydroclass
+dataset_type = geotiff
+unit = hclass
+style = FMI_Radar_accumulated_style
+cleanup_time = 72
+
+[dataset_27]
+name = fmi_radar_single_etop_20
+title = FMI Open Radar height
+dataset_type = geotiff
+unit = km
+style = Gimet_height_style
+cleanup_time = 72
+
+[dataset_28]
+name = bufr_vlad_phenomena
+title = Опасные явления BUFR
+dataset_type = geotiff
+unit = code
+style = Gimet_phenomena_style
+cleanup_time = 120
+
+[dataset_29]
+name = bufr_vlad_dbz1
+title = Отражаемость 1км
+dataset_type = geotiff
+unit = code
+style = Gimet_dbzh_style
+cleanup_time = 120
+
+[dataset_30]
+name = bufr_vlad_height
+title = Высота верхней границы облачности
+dataset_type = geotiff
+unit = code
+style = Gimet_height_style
+cleanup_time = 120
+
+[dataset_31]
+name = bufr_vlad_zdr1
+title = Дифф отражаемость
+dataset_type = geotiff
+unit = code
+style = Gimet_zdr_style
+cleanup_time = 120
+
+[dataset_32]
+name = bufr_vlad_summ12
+title = Сумма 12ч
+dataset_type = geotiff
+unit = code
+style = Gimet_summ_style
+cleanup_time = 120
+
+[dataset_33]
+name = bufr_vlad_vel1
+title = доплеровская скорость
+dataset_type = geotiff
+unit = code
+style = Gimet_velocity_style
+cleanup_time = 120
+
+[dataset_34]
+name = bufr_vlad_vel2
+title = доплеровская скорость
+dataset_type = geotiff
+unit = code
+style = Gimet_velocity_style
+cleanup_time = 120
+
+[dataset_35]
+name = bufr_vlad_vel3
+title = доплеровская скорость
+dataset_type = geotiff
+unit = code
+style = Gimet_velocity_style
+cleanup_time = 120
+
+[dataset_36]
+name = bufr_vlad_vel4
+title = доплеровская скорость
+dataset_type = geotiff
+unit = code
+style = Gimet_velocity_style
+cleanup_time = 120
+
+[dataset37]
+name = bufr_vlad_precip
+title = интенсивность осадков
+dataset_type = geotiff
+unit = code
+style = Gimet_precip_style
+cleanup_time = 120
+
+[dataset_38]
+name = bufr_vlad_summ3
+title = Сумма 3ч
+dataset_type = geotiff
+unit = code
+style = Gimet_summ_style
+cleanup_time = 120
+
+[dataset_39]
+name = bufr_vlad_summ6
+title = Сумма 6ч
+dataset_type = geotiff
+unit = code
+style = Gimet_summ_style
+cleanup_time = 120
+
