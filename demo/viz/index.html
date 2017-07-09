@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"></meta>
+    <title>Composite radar map Reflectivity 1km CAPPI</title>
+    <script src="https://api.tiles.mapbox.com/mapbox-gl-js/v0.36.0/mapbox-gl.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+    <script src="http://code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+    <link rel="stylesheet" href="https://api.tiles.mapbox.com/mapbox-gl-js/v0.36.0/mapbox-gl.css" />
+    <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css"/>
+    <link rel="stylesheet" href="style.css"/>
+  </head>
+  <body>
+
+
+<div id='legend' style='display:none;'>
+      <table cellspacing="0">
+        <caption id="attribution-caption"></caption>
+        <tbody id="attribution-table"><tr data-color="rgb(156,170,177)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(156,170,177)" title="Облачность верхнего и среднего яруса">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Обл. в. ср. яр.</td></tr><tr data-color="rgb(162,198,255)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(162,198,255)" title="Слоистообразная облачность">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Слоист. обл.</td></tr><tr data-color="rgb(70,255,147)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(70,255,147)" title="Осадки слабые">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Ос. слаб.</td></tr><tr data-color="rgb(0,194,90)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(0,194,90)" title="Осадки умеренные">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Ос. умер.</td></tr><tr data-color="rgb(0,152,0)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(0,152,0)" title="Осадки сильные">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Ос. сильн.</td></tr><tr data-color="rgb(255,255,128)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(255,255,128)" title="Кучевая облачность">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Куч. обл.</td></tr><tr data-color="rgb(62,136,255)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(62,136,255)" title="Ливень слабый">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Лив. слаб.</td></tr><tr data-color="rgb(1,56,255)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(1,56,255)" title="Ливень умеренный">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Лив. умер.</td></tr><tr data-color="rgb(0,0,116)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(0,0,116)" title="Ливень сильный">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Лив. сильн.</td></tr><tr data-color="rgb(255,170,127)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(255,170,127)" title="Гроза (R)">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Гроза (R)</td></tr><tr data-color="rgb(255,85,127)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(255,85,127)" title="Гроза R)">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Гроза R)</td></tr><tr data-color="rgb(255,0,0)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(255,0,0)" title="Гроза R">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Гроза R</td></tr><tr data-color="rgb(204,102,0)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(204,102,0)" title="Град слабый">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Град слаб.</td></tr><tr data-color="rgb(136,68,0)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(136,68,0)" title="Град умеренный">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Град умер.</td></tr><tr data-color="rgb(95,0,0)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(95,0,0)" title="Град сильный">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Град сильн.</td></tr><tr data-color="rgb(255,170,255)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(255,170,255)" title="Шквал слабый">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Шквал слаб.</td></tr><tr data-color="rgb(255,85,255)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(255,85,255)" title="Шквал умеренный">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Шквал умер.</td></tr><tr data-color="rgb(199,0,199)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(199,0,199)" title="Шквал сильный">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Шквал сильн.</td></tr><tr data-color="rgb(63,63,95)"><td style="text-align: right"></td><td><span class="palette-color" style="background-color: rgb(63,63,95)" title="Смерч">&nbsp;&nbsp;&nbsp;&nbsp;</span></td><td style="text-align: left">Смерч</td></tr></tbody>
+      </table>
+</div>
+
+    <div id="map"></div>
+    <div id="container">
+      <div id="slider"></div>
+    </div>
+    <script src="index.js" type="text/javascript"></script>
+  </body>
+</html>

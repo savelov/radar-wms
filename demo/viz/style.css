@@ -1,0 +1,44 @@
+body {
+    margin: 0;
+    padding: 0;
+}
+
+#map {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+}
+
+#container {
+    position: relative;
+    width: 90%;
+    top: 10px;
+    left: 50px;
+    padding: 20px;
+}
+
+#slider {
+    width: 100%;
+}
+
+.ui-slider {
+    background: #fff !important;
+    border: 1px solid rgb(153, 153, 153) !important;
+    height: 5px !important;
+    margin-top: 3px !important;
+}
+
+.ui-slider-handle {
+    background: #fff !important;
+    border-radius: 3px !important;
+    border: 1px solid rgb(153, 153, 153) !important;
+    color: rgb(64, 64, 64) !important;
+    font: 18px "Arial";
+    height: 19px !important;
+    margin-left: -20px !important;
+    padding: 10px !important;
+    top: -18px !important;
+    width: 49px !important;
+}
+
