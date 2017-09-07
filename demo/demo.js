@@ -1,5 +1,5 @@
-//var wms_url = "/baltrad_wsgi";
-var wms_url = "http://localhost:8081";
+var wms_url = "/baltrad_wsgi";
+//var wms_url = "http://localhost:8081";
 var wms_tools_url = "/baltrad_tools_wsgi";
 
 /* do not edit anything below this */
@@ -8,7 +8,7 @@ var wmsLayer;
 var lineLayer;
 var layer_name;
 var first_update = true;
-var time_value = null; // current time
+var time_value = -1; // current time
 // update every 1 minutes
 var updater = setInterval(update_times_and_refresh,60000);
 
@@ -130,7 +130,11 @@ function update_meta () {
                     end_select.innerHTML = select.innerHTML;
                     var legend_url = layers[i].getElementsByTagName("LegendURL")[0].getElementsByTagName("OnlineResource")[0].getAttributeNS('http://www.w3.org/1999/xlink', 'href');
                     document.getElementById("map_legend").src = legend_url;
-                    time_value = document.getElementsByTagName("select")[1].value;
+		    if (time_value==-1) {
+                	time_value = document.getElementsByTagName("select")[1].value;
+		    } else {
+                	document.getElementsByTagName("select")[1].value=time_value;
+		    }
                 }
             }
 
