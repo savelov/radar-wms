@@ -18,7 +18,7 @@
     </div>
     <script>
 
-$.getJSON("viz/tiles.json", function(data) {
+$.getJSON("/demo/viz/tiles.json", function(data) {
     var tiles = [];
     $.each(data, function(timestamp, path) {
 	tiles.push({
@@ -43,7 +43,7 @@ $.getJSON("viz/tiles.json", function(data) {
         new ol.layer.Image({
 	  opacity : 0.6,
           source: new ol.source.ImageStatic({
-            url: 'http://www.nowcast.ru/demo/viz/'+tiles[tile_num].path,
+            url: '/demo/viz/'+tiles[tile_num].path,
 	    imageExtent: extent,
 	    projection: 'EPSG:3857'
           })
@@ -51,7 +51,7 @@ $.getJSON("viz/tiles.json", function(data) {
 	new ol.layer.Image({
 	  opacity : 0.6,
           source: new ol.source.ImageWMS({
-            url: 'http://www.nowcast.ru/baltrad_wsgi',
+            url: '/baltrad_wsgi',
             params: {'LAYERS': 'fmi_open_composite_dbz'},
             ratio: 1,
             serverType: 'geoserver'
@@ -104,14 +104,14 @@ var R=6371;
 	if (tile_num > tiles.length-1) tile_num=0;
 	startDate=tiles[tile_num].timestamp;
         layers[1].setSource(new ol.source.ImageStatic({
-            url: 'http://www.nowcast.ru/demo/viz/'+tiles[tile_num].path,
+            url: '/demo/viz/'+tiles[tile_num].path,
 	    imageExtent: extent,
 	    projection: 'EPSG:3857'
           }) );
 	layers[2].getSource().updateParams({'TIME': startDate.toISOString().slice(0,-5)+'Z'});
 
     var xmlhttp = new XMLHttpRequest();
-    var url = 'http://www.nowcast.ru/vector_wsgi?time='+startDate.toISOString().slice(0,-5)+'Z&title=test';
+    var url = '/vector_wsgi?time='+startDate.toISOString().slice(0,-5)+'Z&title=test';
 
     xmlhttp.onreadystatechange = function() {
     if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
