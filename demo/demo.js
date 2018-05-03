@@ -1,3 +1,4 @@
+//var wms_url = "/baltrad/baltrad_wms.py";
 var wms_url = "/baltrad_wsgi";
 //var wms_url = "http://localhost:8081";
 var wms_tools_url = "/baltrad_tools_wsgi";
@@ -66,7 +67,7 @@ function init() {
       });
 
       wmsLayer = new ol.layer.Image({
-	  opacity : 0.6,
+	  opacity : 0.5,
           source: wmsSource
       });
 
@@ -87,7 +88,7 @@ function init() {
           zoom: 6
       });
 
-      var map = new ol.Map({
+      map = new ol.Map({
         layers: [ new ol.layer.Tile({ source: new ol.source.OSM() }), wmsLayer, lineLayer],
         target: 'map',
         view: view
@@ -98,7 +99,7 @@ function init() {
 //    map.addControl(new OpenLayers.Control.LayerSwitcher());
 
 
-//    map.events.register('click', map, findLayerClick);
+      map.on('click',  findLayerClick)
 
     update_meta();
     update_layer_params();
@@ -130,11 +131,11 @@ function update_meta () {
                     end_select.innerHTML = select.innerHTML;
                     var legend_url = layers[i].getElementsByTagName("LegendURL")[0].getElementsByTagName("OnlineResource")[0].getAttributeNS('http://www.w3.org/1999/xlink', 'href');
                     document.getElementById("map_legend").src = legend_url;
-		    if (time_value==-1) {
-                	time_value = document.getElementsByTagName("select")[1].value;
-		    } else {
-                	document.getElementsByTagName("select")[1].value=time_value;
-		    }
+                    if (time_value==-1) {
+                        time_value = document.getElementsByTagName("select")[1].value;
+                    } else {
+                        document.getElementsByTagName("select")[1].value=time_value;
+                    }
                 }
             }
 
@@ -212,24 +213,28 @@ function go(direction) {
  */
 function findLayerClick(event) {
 
-    mouseLoc = map.getLonLatFromPixel(event.xy);
+    var url = wms_url+'?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo'+
+	    '&EXCEPTIONS=application%2Fvnd.ogc.se_xml'+
+	    '&BBOX='+map.getView().calculateExtent(map.getSize())+
+	    '&MAX_FEATURES=1'+
+	    '&X='+event.pixel[0] + 
+	    '&Y='+event.pixel[1] + 
+            '&INFO_FORMAT=text%2Fhtml' +
+            '&QUERY_LAYERS='+ layer_name +
+            '&LAYERS='+ layer_name +
+	    '&FORMAT=image%2Fpng' +
+	    '&TIME='+ time_value +
+	    '&FEATURE_COUNT=1' +
+	    '&SRS=EPSG%3A3857' +
+	    '&WIDTH=' + map.getSize()[0] + 
+	    '&HEIGHT=' + map.getSize()[1];
 
-    var url = layer.getFullRequestString({
-                REQUEST: "GetFeatureInfo",
-                EXCEPTIONS: "application/vnd.ogc.se_xml",
-                BBOX: map.getExtent().toBBOX(),
-                MAX_FEATURES: 1,
-                X: event.xy.x,
-                Y: event.xy.y,
-                INFO_FORMAT: 'text/html',
-                QUERY_LAYERS: layer_name,
-                // RADIUS: 40,
-                FEATURE_COUNT: 1,
-                WIDTH: map.size.w,
-                HEIGHT: map.size.h},
-                wms_url + '?');
+        if (url) {
+          document.getElementById('featureinfo').innerHTML =
+              '<iframe seamless src="' + url + '"></iframe>';
+        }
 
-    OpenLayers.Request.GET({url: url,callback:setHTML,scope:this});
+//    OpenLayers.Request.GET({url: url,callback:setHTML,scope:this});
 
     // Event.stop(event);
 }
