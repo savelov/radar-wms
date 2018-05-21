@@ -445,7 +445,7 @@ cleanup_time = 120
 
 [dataset_15]
 name = bufr_height
-title = Высота верхней границы облачности
+title = Высота ВГО
 dataset_type = geotiff
 unit = code
 style = Gimet_height_style
@@ -509,7 +509,7 @@ cleanup_time = 120
 
 [dataset_23]
 name = bufr_precip
-title = интенсивность осадков
+title = Интенсивность осадков
 dataset_type = geotiff
 unit = code
 style = Gimet_precip_style

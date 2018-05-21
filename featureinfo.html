@@ -1,5 +1,49 @@
 <!-- Mapserver Template -->
+<meta charset="utf-8"/>
 <p>
-Value: <b>[value_list]</b> <br/>
+<script type="text/javascript">
+var layername="[metadata_wms_title]";
+var value=[value_list];
+var converted_value;
+var converted_name;
+
+if (layername=="Отражаемость 1км") {
+  converted_value=-31.50+(value-1.0)*(31.50+95.50)/254.0;
+  converted_name="dBZ";
+}
+else if (layername=="доплеровская скорость") {
+  converted_value=63.50*(-1.0+(value-1.0)*2.0/254.0);
+  converted_name="м/c";
+}
+else if (layername=="Дифф отражаемость") {
+  converted_value=(-12.70+(value-1.0)*0.10);
+  converted_name="dB";
+}
+else if (layername=="Высота ВГО") {
+  converted_value=((value-2.0)*1.0/10);
+  converted_name="км";
+}
+else if (layername=="Сумма осадков 12 час") {
+  converted_value=Math.pow(10.0,value/51.0-1.50);
+  converted_name="мм";
+} 
+else if (layername=="Интенсивность осадков") {
+var lgz = (-31.50 + (value - 1.0) * (31.50 + 95.50) / 254.0) * 0.10;
+var ak = 200;
+var bk = 1.6;
+var b1 = Math.log10(ak);
+var b2 = (lgz - b1) / bk;
+converted_value=Math.pow(10.0, b2);
+converted_name="мм/ч";
+}
+else {
+converted_value=value;
+converted_name="byte";
+}
+
+
+document.write("Value:"+converted_value.toFixed(1)+" "+converted_name);
+</script>
+<br/>
 (at [maplon],[maplat])
 </p>
