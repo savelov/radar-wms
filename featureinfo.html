@@ -1,49 +1,73 @@
 <!-- Mapserver Template -->
 <meta charset="utf-8"/>
-<p>
+<p id="output1">
+</p>
 <script type="text/javascript">
 var layername="[metadata_wms_title]";
 var value=[value_list];
 var converted_value;
-var converted_name;
+var converted_name='';
 
-if (layername=="Отражаемость 1км") {
-  converted_value=-31.50+(value-1.0)*(31.50+95.50)/254.0;
-  converted_name="dBZ";
+if (layername=="GIMET Reflectivity (dbz)") {
+  if (value==0) converted_value='нет инф'; else {
+    converted_value=(-31.50+(value-1.0)*(31.50+95.50)/254.0).toFixed(1);
+    converted_name="dBZ";
+  }
 }
 else if (layername=="доплеровская скорость") {
-  converted_value=63.50*(-1.0+(value-1.0)*2.0/254.0);
-  converted_name="м/c";
+  if (value==0) converted_value='нет инф'; else {
+    converted_value=(63.50*(-1.0+(value-1.0)*2.0/254.0)).toFixed(1);
+    converted_name="м/c";
+  }
 }
 else if (layername=="Дифф отражаемость") {
-  converted_value=(-12.70+(value-1.0)*0.10);
-  converted_name="dB";
+  if (value==255) converted_value='нет инф'; else {
+    converted_value=(-12.70+(value-1.0)*0.10).toFixed(1);
+    converted_name="dB";
+  }
 }
 else if (layername=="Высота ВГО") {
-  converted_value=((value-2.0)*1.0/10);
-  converted_name="км";
+  if (value==0) converted_value='нет инф'; else {
+    converted_value=((value-2.0)*1.0/10).toFixed(1);
+    converted_name="км";
+  }
 }
 else if (layername=="Сумма осадков 12 час") {
-  converted_value=Math.pow(10.0,value/51.0-1.50);
-  converted_name="мм";
+  if (value==0) converted_value='нет инф'; else {
+    converted_value=Math.pow(10.0,value/51.0-1.50).toFixed(1);
+    converted_name="мм";
+  }
 } 
 else if (layername=="Интенсивность осадков") {
-var lgz = (-31.50 + (value - 1.0) * (31.50 + 95.50) / 254.0) * 0.10;
-var ak = 200;
-var bk = 1.6;
-var b1 = Math.log10(ak);
-var b2 = (lgz - b1) / bk;
-converted_value=Math.pow(10.0, b2);
-converted_name="мм/ч";
+  if (value==0) converted_value='нет инф'; else {
+    var lgz = (-31.50 + (value - 1.0) * (31.50 + 95.50) / 254.0) * 0.10;
+    var ak = 200;
+    var bk = 1.6;
+    var b1 = Math.log10(ak);
+    var b2 = (lgz - b1) / bk;
+    converted_value=Math.pow(10.0, b2).toFixed(1);
+    converted_name="мм/ч";
+   }
+}
+else if (layername=="Опасные явления") {
+var phenomena = {
+255:'нет инф', 0:'нет эхо',1:'обл. сред. яруса',2:'сл. образования',
+ 3 :'осадки слабые', 4:'осадки умеренные', 5 :'осадки сильные' ,
+ 6 : 'кучевая обл' ,  7:'ливень слабый', 8 :'ливень умеренный' ,
+ 9 : 'ливень сильный', 10:'гроза (R)', 11:'гроза (R)',
+ 12: 'гроза R', 13 : 'град слабый', 14 : 'град умеренный',
+ 15: 'град сильный' , 16 : 'шквал сильный',
+ 17: 'шквал умеренный', 18 : 'шквал сильный', 19 : 'смерч'};
+
+converted_value=phenomena[value];
 }
 else {
 converted_value=value;
 converted_name="byte";
 }
 
-
-document.write("Value:"+converted_value.toFixed(1)+" "+converted_name);
+var longitude=parseFloat('[maplon]');
+var lattitude=parseFloat('[maplat]');
+document.getElementById('output1').innerHTML= converted_value+" "+converted_name+"<br>"+
+longitude.toFixed(2)+" E<br>"+lattitude.toFixed(2)+" N";
 </script>
-<br/>
-(at [maplon],[maplat])
-</p>
