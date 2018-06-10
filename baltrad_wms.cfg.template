@@ -429,7 +429,7 @@ cleanup_time = 120
 
 [dataset_13]
 name = bufr_phenomena
-title = Опасные явления BUFR
+title = Опасные явления
 dataset_type = geotiff
 unit = code
 style = Gimet_phenomena_style

@@ -8,14 +8,14 @@ var value=[value_list];
 var converted_value;
 var converted_name='';
 
-if (layername=="GIMET Reflectivity (dbz)") {
-  if (value==0) converted_value='нет инф'; else {
+if (layername=="Отражаемость 1км") {
+  if (value==1) converted_value='нет эхо'; else {
     converted_value=(-31.50+(value-1.0)*(31.50+95.50)/254.0).toFixed(1);
     converted_name="dBZ";
   }
 }
 else if (layername=="доплеровская скорость") {
-  if (value==0) converted_value='нет инф'; else {
+  if (value==1) converted_value='нет эхо'; else {
     converted_value=(63.50*(-1.0+(value-1.0)*2.0/254.0)).toFixed(1);
     converted_name="м/c";
   }
@@ -39,7 +39,7 @@ else if (layername=="Сумма осадков 12 час") {
   }
 } 
 else if (layername=="Интенсивность осадков") {
-  if (value==0) converted_value='нет инф'; else {
+  if (value==1) converted_value='нет эхо'; else {
     var lgz = (-31.50 + (value - 1.0) * (31.50 + 95.50) / 254.0) * 0.10;
     var ak = 200;
     var bk = 1.6;
