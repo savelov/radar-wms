@@ -61,6 +61,18 @@ var phenomena = {
 
 converted_value=phenomena[value];
 }
+else if (layername=="FMI Open Radar (dBZH)") {
+  if (value==0) converted_value='нет эхо'; else {
+    converted_value=(0.5*value-32).toFixed(1);
+    converted_name="dBZ";
+  }
+}
+else if (layername=="FMI Open Radar (mm/h)") {
+  if (value==0) converted_value='нет эхо'; else {
+    converted_value=(0.01*value).toFixed(2);
+    converted_name="мм/ч";
+  }
+}
 else {
 converted_value=value;
 converted_name="byte";
