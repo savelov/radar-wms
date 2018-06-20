@@ -41,7 +41,11 @@ h1 {
     float: left;
 }
 #legend {
+    width: 200px;
     float: left;
+}
+#featureinfo {
+    width: 200px;
 }
 
 
