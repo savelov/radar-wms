@@ -2,11 +2,16 @@
 # MODIFY THIS
 config_path = "/home/ubuntu/radar-wms/baltrad_wms.cfg"
 #
+import sys
 
-
-import configparser
-config = configparser.ConfigParser()
-config.read( config_path )
+if sys.version_info >= (3,) :
+    import configparser
+    config = configparser.ConfigParser()
+    config.read( config_path, encoding='utf8')
+else:
+    import ConfigParser
+    config = ConfigParser.ConfigParser()
+    config.read( config_path)
 
 import logging
 import sys

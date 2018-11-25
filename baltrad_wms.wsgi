@@ -21,7 +21,7 @@ def application(environ,start_response):
     mapscript.msIO_installStdoutToBuffer()
     map_success = map_object.OWSDispatch( req ) # output should be 0
     try:
-	content_type = mapscript.msIO_stripStdoutBufferContentType()
+        content_type = mapscript.msIO_stripStdoutBufferContentType()
     except :
         start_response('200 OK', [('Content-Type', 'text/html')])
         return ['Error']
