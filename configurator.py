@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # MODIFY THIS
-config_path = "/home/eugene/radar-wms/baltrad_wms.cfg"
+config_path = "/home/ubuntu/radar-wms/baltrad_wms.cfg"
 #
 
 

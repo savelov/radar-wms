@@ -1,8 +1,8 @@
 [locations]
-db_uri = sqlite:////home/eugene/radar-wms/radar_datasets.db
-baltrad_data_dir = /home/eugene/baltrad_files
-wms_data_dir =/home/eugene/baltrad_wms_data
-mapfile = /home/eugene/radar-wms/baltrad_wms.map
+db_uri = sqlite:////home/ubuntu/radar-wms/radar_datasets.db
+baltrad_data_dir = /home/ubuntu/baltrad_files
+wms_data_dir =/home/ubuntu/baltrad_wms_data
+mapfile = /home/ubuntu/radar-wms/baltrad_wms.map
 online_resource= http://localhost:8081
 tmpdir = /tmp
 
