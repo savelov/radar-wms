@@ -162,39 +162,6 @@ function update_layer_params() {
     wmsLayer.getSource().updateParams({'TIME': time_value,'LAYERS': layer_name});
     document.getElementsByTagName("select")[1].value=new_time_value;
 
-    var xmlhttp = new XMLHttpRequest();
-    var url = '/vector_wsgi?time='+time_value+'&title='+layer_name;
-
-    xmlhttp.onreadystatechange = function() {
-    if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
-	lineLayer.getSource().clear();
-
-	var myArr = JSON.parse(xmlhttp.responseText);
-        var features = new Array(myArr.length);
-
-	for (var i=0; i<myArr.length; i++) {
-	    var lat = myArr[i][0];
-	    var lon = myArr[i][1];
-	    var dist= myArr[i][2]*3.6;
-	    var head= myArr[i][3];
-
-
-	    var points=[[lon,lat],destination(lon, lat, dist, head)];
-	    for (var j = 0; j < points.length; j++) {
-		points[j] = ol.proj.transform(points[j], 'EPSG:4326', 'EPSG:3857');
-	    }
-	    features[i] = new ol.Feature({
-		geometry: new ol.geom.LineString(points)
-	    });
-
-	}
-    	lineLayer.getSource().addFeatures(features);
-    }
-    };
-
-    xmlhttp.open("GET", url, true);
-    xmlhttp.send();
-
 }
 
 function go(direction) {
