@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os
-import ConfigParser
+import configparser
 from datetime import datetime,timedelta
 
 from db_setup import *
@@ -18,7 +18,7 @@ config_dataset_names,config_sections = get_sections_from_config()
 
 def update(timestamp,projection,bbox,name):
         return_datasets=[]
-	logger.debug( "Start updating of DB" )
+        logger.debug( "Start updating of DB" )
 #	name="gimet_dbz"
         # create dataset geotiff directory if it doesn't exist
         tiff_dir = "%s/%s" % (tiff_dir_base,name)
@@ -28,19 +28,19 @@ def update(timestamp,projection,bbox,name):
 
 #        timestamp = datetime(2015,9,2,17,30)
         tiff_path = os.path.join( tiff_dir, name+"_%4d%02d%02d_%02d%02d.tiff" % (
-	    timestamp.year, timestamp.month, timestamp.day, timestamp.hour, timestamp.minute) )
-	unit="dBZ"
-	dataset_type="geotiff"
-	style="Gimet_dbzh_style"
-	title="GIMET reflectivity (dBZ)"
+        timestamp.year, timestamp.month, timestamp.day, timestamp.hour, timestamp.minute) )
+        unit="dBZ"
+        dataset_type="geotiff"
+        style="Gimet_dbzh_style"
+        title="GIMET reflectivity (dBZ)"
 
-	radar_datasets = session.query(RadarDataset)\
+        radar_datasets = session.query(RadarDataset)\
                     .filter(RadarDataset.geotiff_path==tiff_path)\
                     .filter(RadarDataset.name==name)
             # continue with next file if result is already in DB
         if radar_datasets.count()>0:
                 logger.debug ( "File %s already in database" % tiff_path )
-		return None
+                return None
 
         logger.info( "Add new dataset: %s:%s to DB." % (name,str(timestamp)) )
         add_datasets = [(
@@ -61,10 +61,10 @@ def update(timestamp,projection,bbox,name):
                                         "timestamp": timestamp })
         session.add_all(add_datasets)
         session.commit()
-	logger.info ( "Added %i results." % len(return_datasets) )
-	logger.debug( "Updating of DB finished" )
-	session.close()
-	return return_datasets
+        logger.info ( "Added %i results." % len(return_datasets) )
+        logger.debug( "Updating of DB finished" )
+        session.close()
+        return return_datasets
 
 def clear():
     for layer in ['gimet_phenomena','gimet_dbz','gimet_zdr','gimet_height','gimet_summ','gimet_precip','gimet_velocity', 

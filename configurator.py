@@ -4,8 +4,8 @@ config_path = "/home/ubuntu/radar-wms/baltrad_wms.cfg"
 #
 
 
-import ConfigParser
-config = ConfigParser.ConfigParser()
+import configparser
+config = configparser.ConfigParser()
 config.read( config_path )
 
 import logging
