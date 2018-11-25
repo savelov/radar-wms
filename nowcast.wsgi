@@ -65,6 +65,7 @@ def get_prob_arr(ncf, starttime_str, endtime_str, lat, lon):
 
 def get_prob_dict(out_dir, lat, lon):
     filename = sorted(glob(out_dir + "/probab_ensemble_nwc_*.ncf"))[-1]
+    if (os.path.getsize (filename) ==0) : return {}
     timeformat = "%Y-%m-%dT%H:%M:%SZ"
     ncf = open_netcdf(filename, 'r')
     data = get_data(ncf, timeformat=timeformat)
