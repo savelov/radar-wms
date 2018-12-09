@@ -114,3 +114,4 @@ filename = sorted(glob("/home/ubuntu/pysteps-data/out/probab_ensemble_nwc_*.ncf"
 
 ncf = open_netcdf(filename, 'r')
 to_geotiff(ncf, "/home/ubuntu/baltrad_wms_data/nowcast")
+clear()

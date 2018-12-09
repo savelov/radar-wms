@@ -69,7 +69,8 @@ def update(timestamp,projection,bbox,name):
 def clear():
     for layer in ['gimet_phenomena','gimet_dbz','gimet_zdr','gimet_height','gimet_summ','gimet_precip','gimet_velocity', 
     'bufr_phenomena', 'bufr_height', 'bufr_dbz1','bufr_zdr1', 'bufr_summ12', 'bufr_vel1', 'bufr_vel2', 'bufr_vel3', 'bufr_vel4','bufr_precip',
-    'bufr_vlad_phenomena', 'bufr_vlad_height', 'bufr_vlad_dbz1','bufr_vlad_zdr1', 'bufr_vlad_summ3','bufr_vlad_summ6','bufr_vlad_summ12', 'bufr_vlad_vel1', 'bufr_vlad_vel2', 'bufr_vlad_vel3', 'bufr_vlad_vel4','bufr_vlad_precip' ] :
+    'bufr_vlad_phenomena', 'bufr_vlad_height', 'bufr_vlad_dbz1','bufr_vlad_zdr1', 'bufr_vlad_summ3','bufr_vlad_summ6','bufr_vlad_summ12',
+    'bufr_vlad_vel1', 'bufr_vlad_vel2', 'bufr_vlad_vel3', 'bufr_vlad_vel4','bufr_vlad_precip','nowcast' ] :
         if not layer in config_dataset_names:
             continue
         else:

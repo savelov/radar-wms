@@ -312,6 +312,14 @@ level = debug
 79 = 0.1,10,20,49,57,159
 80 = <0.1,0,10,204,204,204
 
+[nowcast_style]
+01 = 100%,80,100,235,149,26
+02 = 80%,60,80,223,196,10
+03 = 60%,40,60,241,243,90
+04 = 40%,20,40,64,152,87
+05 = 20%,0,20,108,235,243
+
+
 # dataset names must be unique!
 # Dataset section names are dataset_1, dataset_2, etc. (no limitation)
 [dataset_1]
@@ -641,5 +649,13 @@ title = Сумма 6ч
 dataset_type = geotiff
 unit = code
 style = Gimet_summ_style
+cleanup_time = 120
+
+[dataset_40]
+name = nowcast
+title = Наукстинг
+dataset_type = geotiff
+unit = code
+style = nowcast_style
 cleanup_time = 120
 
