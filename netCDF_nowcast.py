@@ -107,7 +107,7 @@ def to_geotiff(ncf, out_folder):
                                height=h, width=w, count = 1, dtype=np.uint8,
                                crs=ncf.projection, nodata=255, transform=affine) as ncfile:
             ncfile.write_band(1, img_data)
-        update(datetime,ncf.projection,(-w*1000, -h*1000, w*1000, h*1000),'nowcast')
+        update(datetime,ncf.projection,(-w*2*1000, -h*2*1000, w*2*1000, h*2*1000),'nowcast')
 
 
 filename = sorted(glob("/home/ubuntu/pysteps-data/out/probab_ensemble_nwc_*.ncf"))[-1]
