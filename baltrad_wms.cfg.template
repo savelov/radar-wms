@@ -653,7 +653,7 @@ cleanup_time = 120
 
 [dataset_40]
 name = nowcast
-title = Наукстинг
+title = Наукастинг
 dataset_type = geotiff
 unit = code
 style = nowcast_style
