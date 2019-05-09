@@ -5,7 +5,6 @@ import os
 import sys
 from wsgiref.simple_server import make_server
 
-
 sys.path.append(os.path.dirname(__file__))
 
 import ConfigParser
@@ -24,7 +23,7 @@ import zipfile
 import tempfile
 from pyproj import Proj, transform
 
-kmz_image_width = 600
+kmz_image_width = 3000
 kml_namespace = "http://www.opengis.net/kml/2.2"
 
 #            else:
@@ -58,16 +57,24 @@ def time_series(req,start_time,end_time,layer_name):
             radar_proj = Proj(str(r.projdef))
         lonlat_proj = Proj(init="epsg:4326")
         b = r.bbox_original.split(",")
-        lonmin, latmin = transform(radar_proj,
+        lonmin, __ = transform(radar_proj,
                                    lonlat_proj,
                                    float(b[0]),
+                                   0)
+        __, latmin = transform(radar_proj,
+                                   lonlat_proj,
+                                   0,
                                    float(b[1]))
-        lonmax, latmax = transform(radar_proj,
+        lonmax, __  = transform(radar_proj,
                                    lonlat_proj,
                                    float(b[2]),
+                                   0)
+        __, latmax = transform(radar_proj,
+                                   lonlat_proj,
+                                   0,
                                    float(b[3]))
-        # add some extra bounds due to different projection
-        bbox_lonlat = [lonmin-1, latmin-1, lonmax+1, latmax+1]
+
+        bbox_lonlat = [lonmin, latmin, lonmax, latmax]
         bbox_lonlat = map(str,bbox_lonlat)
         bbox_lonlat = ",".join( bbox_lonlat )
         bboxes.append( bbox_lonlat )
@@ -85,7 +92,7 @@ def time_series(req,start_time,end_time,layer_name):
         request_string += "SRS=epsg:4326"
         kmz_files = {}
         kmz_output = StringIO.StringIO()
-        kml_object =  ElementTree.fromstring( open( os.path.dirname(__file__)+'/baltrad_singlelayer.kml', 'r').read() )
+        kml_object =  ElementTree.fromstring( open( os.path.dirname(os.path.realpath(__file__))+'/baltrad_singlelayer.kml', 'r').read() )
         root_object = kml_object.find('.//{%s}Folder' % kml_namespace)
         folder = root_object.find('.//{%s}Folder' % kml_namespace)
         folder_name = folder.find('.//{%s}name' % kml_namespace)
@@ -115,9 +122,6 @@ def time_series(req,start_time,end_time,layer_name):
             #when = ElementTree.SubElement(timestamp, "when")
             #when.text = str( timestamps[i] )
             wms_request = request_string + "&BBOX=%f,%f,%f,%f&" % (data_bbox[0], data_bbox[1], data_bbox[2],data_bbox[3])
-            kmz_image_height = int ( kmz_image_width * (data_bbox[3]-data_bbox[1]) / (data_bbox[2]-data_bbox[0]) ) 
-            wms_request += "WIDTH=%i&HEIGHT=%i&" % (kmz_image_width, kmz_image_height)
-            wms_request += "SRS=epsg:4326"
             latlonbox = ElementTree.SubElement(ground_overlay, "LatLonBox")
             for item in geo_coords.keys():
                 element = ElementTree.SubElement(latlonbox, item)
