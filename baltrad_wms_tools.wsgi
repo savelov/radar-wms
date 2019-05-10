@@ -23,7 +23,7 @@ import zipfile
 import tempfile
 from pyproj import Proj, transform
 
-kmz_image_width = 3000
+kmz_image_width = 2000
 kml_namespace = "http://www.opengis.net/kml/2.2"
 
 #            else:
@@ -60,18 +60,18 @@ def time_series(req,start_time,end_time,layer_name):
         lonmin, __ = transform(radar_proj,
                                    lonlat_proj,
                                    float(b[0]),
-                                   0)
+                                   (float(b[1])+float(b[3]))/2)
         __, latmin = transform(radar_proj,
                                    lonlat_proj,
-                                   0,
+                                   (float(b[0])+float(b[2]))/2,
                                    float(b[1]))
         lonmax, __  = transform(radar_proj,
                                    lonlat_proj,
                                    float(b[2]),
-                                   0)
+                                   (float(b[1])+float(b[3]))/2)
         __, latmax = transform(radar_proj,
                                    lonlat_proj,
-                                   0,
+                                   (float(b[0])+float(b[2]))/2,
                                    float(b[3]))
 
         bbox_lonlat = [lonmin, latmin, lonmax, latmax]
