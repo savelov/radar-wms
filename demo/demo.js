@@ -67,7 +67,7 @@ function init() {
       });
 
       wmsLayer = new ol.layer.Image({
-	  opacity : 0.5,
+	  opacity : 0.7,
           source: wmsSource
       });
 
