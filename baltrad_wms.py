@@ -57,9 +57,9 @@ def wms_request(req,settings):
                 layers[l_name].classitem = "[pixel]"
             layers[l_name].status = mapscript.MS_ON
             if str(opacity).isdigit():
-                layers[l_name].opacity = int(opacity)
+                layers[l_name].setOpacity(int(opacity))
             else:
-                layers[l_name].opacity = 70 # default opacity
+                layers[l_name].setOpacity(70) # default opacity
             try: # old mapserver
                 layers[l_name].metadata.set("wms_title", new_layer_title)
                 layers[l_name].metadata.set("wms_timeitem", "TIFFTAG_DATETIME")
