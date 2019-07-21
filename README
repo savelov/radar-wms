@@ -13,6 +13,11 @@ Dependencies
 * Python GDAL bindings (http://pypi.python.org/pypi/GDAL/)
 * Apache or any other web server software that can handle cgi requests 
 
+Additional configuration required (ubuntu 18.04) - (by Eugene Savelov savelov@gmail.com)
+apt install libapache2-mod-wsgi ttf-mscorefonts-installer 
+cp fonts.list /usr/share/fonts/truetype/msttcorefonts
+cp nowcast.conf /etc/apache2/sites-enabled
+
 History
 -------
 13.12.2013
