@@ -71,7 +71,7 @@ def get_prob_dict(out_dir, lat, lon):
     timelist = list(map(lambda x: dt.datetime.strptime(x, timeformat), [i for i in data]))
 
     datetime_now = dt.datetime.utcnow()
-    timelist = list(filter(lambda x: datetime_now >= x and x <= datetime_now + dt.timedelta(hours=2), timelist))
+    timelist = list(filter(lambda x: datetime_now <= x and x <= datetime_now + dt.timedelta(hours=2), timelist))
 
     x,y = get_cords(ncf, lat, lon)
     P = OrderedDict()
