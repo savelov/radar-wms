@@ -17,10 +17,10 @@ def get_data(ncf, timeformat = ncf_time_format):
     data_var = "precip_probability"
     time_var = "time"
     #time_format = "%Y-%m-%d %H:%M:%S"
-    startdate = dt.datetime.strptime(ncf.startdate_str, ncf_time_format)
+    startdate = dt.datetime.strptime(ncf.datetime, ncf_time_format)
     data = OrderedDict()
     for i in range(ncf[data_var].shape[0]):
-        min_passed = int(ncf.variables["fc_time"][i])
+        min_passed = int(ncf.variables[time_var][i])
         datetime = startdate + dt.timedelta(minutes = min_passed)
         data[dt.datetime.strftime(datetime, timeformat)] = ncf[data_var][i]
     return data
@@ -83,7 +83,7 @@ def convert_probability_to_byte(values):
     return bytes.astype(np.uint8)
 
 def to_geotiff(ncf, out_folder):
-    startdate = dt.datetime.strptime(ncf.startdate_str, ncf_time_format)
+    startdate = dt.datetime.strptime(ncf.datetime, ncf_time_format)
 
     n,h,w = ncf.variables["precip_probability"].shape
 
@@ -101,7 +101,11 @@ def to_geotiff(ncf, out_folder):
 
         datetime = dt.datetime.strptime(key, ncf_time_format)
         filename = out_folder + "/nowcast_" + dt.datetime.strftime(datetime, "%Y%m%d_%H%M") + ".tiff"
-
+        import os
+        filename = os.path.realpath(filename)
+        if not os.path.exists(os.path.dirname(filename)):
+            os.mkdir(os.path.dirname(filename))
+        print(filename)
         img_data = convert_probability_to_byte(data[key])
         with rasterio.open(filename, 'w', driver='GTiff',
                                height=h, width=w, count = 1, dtype=np.uint8,

@@ -21,16 +21,15 @@ def get_data(ncf, timeformat = ncf_time_format):
     data_var = "precip_probability"
     time_var = "time"
     #time_format = "%Y-%m-%d %H:%M:%S"
-    startdate = dt.datetime.strptime(ncf.startdate_str, ncf_time_format)
+    startdate = dt.datetime.strptime(ncf.datetime, ncf_time_format)
     data = OrderedDict()
     for i in range(ncf[data_var].shape[0]):
-        min_passed = int(ncf.variables["fc_time"][i])
+        min_passed = int(ncf.variables[time_var][i])
         datetime = startdate + dt.timedelta(minutes = min_passed)
         data[dt.datetime.strftime(datetime, timeformat)] = ncf[data_var][i]
     return data
 
 def _get_prob(ncf, datetime_str, x, y):
-
     data = get_data(ncf)
     datetime = dt.datetime.strptime(datetime_str,"%Y%m%d%H%M")
     p = data[str(datetime)][y][x]
