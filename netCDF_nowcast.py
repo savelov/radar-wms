@@ -79,7 +79,7 @@ def get_prob_dict(out_dir, lat, lon):
 
 def convert_probability_to_byte(values):
     bytes = values * 100.
-    bytes[values == np.NaN] = 255
+    bytes[values == -1] = 255
     return bytes.astype(np.uint8)
 
 def to_geotiff(ncf, out_folder):
