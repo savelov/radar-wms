@@ -77,9 +77,12 @@ def get_prob_dict(out_dir, lat, lon):
     P = OrderedDict()
     for time in timelist:
         time_str = dt.datetime.strftime(time, timeformat)
-        P[time_str] = data[time_str][y][x]
+        try:
+            P[time_str] = data[time_str][y][x]
+        except IndexError:
+            P[time_str] = float('NaN')
         if P[time_str]==-1:
-             P[time_str]=float('NaN')
+            P[time_str] = float('NaN')
     return P
 
 def application (environ, start_response):
