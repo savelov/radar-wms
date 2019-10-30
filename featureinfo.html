@@ -28,7 +28,7 @@ else if (layername=="Дифф отражаемость") {
   }
 }
 else if (layername=="Высота ВГО") {
-  if (value==0) converted_value='нет инф'; else {
+  if (value==1) converted_value='нет эхо'; else {
     converted_value=((value-2.0)*1.0/10).toFixed(1);
     converted_name="км";
   }
