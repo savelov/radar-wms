@@ -85,17 +85,18 @@ def convert_probability_to_byte(values):
 
 
 def convert_precipitation_to_byte(values):
-    values[(values >= 5.001)] = 210
-    values[(values > 0.001) & (values < 0.5)] = 10
-    values[(values > 0.5001) & (values < 1)] = 40
-    values[(values > 1.001) & (values < 1.5)] = 70
-    values[(values > 1.501) & (values < 2)] = 100
-    values[(values > 2.001) & (values < 3.5)] = 130
-    values[(values > 3.501) & (values < 4)] = 160
-    values[(values > 4.001) & (values < 4.5)] = 190
-    values[(values > 4.501) & (values < 5)] = 200
+    # values[(values >= 5.001)] = 210
+    # values[(values > 0.001) & (values < 0.5)] = 10
+    # values[(values > 0.5001) & (values < 1)] = 40
+    # values[(values > 1.001) & (values < 1.5)] = 70
+    # values[(values > 1.501) & (values < 2)] = 100
+    # values[(values > 2.001) & (values < 3.5)] = 130
+    # values[(values > 3.501) & (values < 4)] = 160
+    # values[(values > 4.001) & (values < 4.5)] = 190
+    # values[(values > 4.501) & (values < 5)] = 200
     values[values == -1] = 255
-    return values.astype(np.uint8)
+    # return values.astype(np.uint8)
+    return values
 
 
 def to_geotiff(ncf, out_folder):
@@ -136,8 +137,9 @@ def to_geotiff(ncf, out_folder):
             os.mkdir(os.path.dirname(filename))
         print(filename)
         img_data = convert_probability_to_byte(data[key]) if product == 'precip_probability' else convert_precipitation_to_byte(values=data[key].data)
+        dtype = np.uint8 if product == 'precip_probability' else np.float32
         with rasterio.open(filename, 'w', driver='GTiff',
-                               height=h, width=w, count=1, dtype=np.uint8,
+                               height=h, width=w, count=1, dtype=dtype,
                                crs=ncf.projection, nodata=255, transform=affine) as ncfile:
             ncfile.write_band(1, img_data)
         update(datetime,ncf.projection,(-w*2*1000, -h*2*1000, w*2*1000, h*2*1000),pr)
