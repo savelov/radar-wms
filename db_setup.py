@@ -60,7 +60,7 @@ if __name__ == '__main__':
     #answer = raw_input("Erase all? (y/[n]) ")
     #if answer=="y":
     #    drop()
-    answer = raw_input("Create new database? (y/[n]) ")
+    answer = input("Create new database? (y/[n]) ")
     if answer=="y":
         create()
 

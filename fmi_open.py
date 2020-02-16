@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 # script fetches FMI Open data and imports it to DB
-from quicklock import singleton
-singleton('fmi_open')
 
 
 from db_setup import *
 from cleaner import *
-import ConfigParser
+import configparser
 from configurator import *
 
 
@@ -18,7 +16,7 @@ logger = set_logger( "fmi_open" )
 
 from datetime import datetime,timedelta
 import os
-import urllib2
+from urllib.request import urlopen,urlparse
 from xml.etree import ElementTree
 gml_namespace = "http://www.opengis.net/gml/3.2"
 
@@ -55,7 +53,7 @@ def update():
         # get WFS to get WMS urls
         try:
             wfs_url = wfs_layers[layer].replace("{key}",api_key) 
-            response = urllib2.urlopen( wfs_url )
+            response = urlopen( wfs_url )
             logger.debug( "Data from url %s fetched" % wfs_url )
         # ignore network related problems
         except:
@@ -66,7 +64,7 @@ def update():
         file_references = wfs_response.findall('.//{%s}fileReference' % gml_namespace)
         for ref in file_references:
             url = ref.text
-            query = urllib2.urlparse.urlparse(url).query
+            query = urlparse(url).query
             query = query.split("&")
             for q in query:
                 if q[0:4].lower()=="time":
@@ -93,7 +91,7 @@ def update():
                     .replace("-","") + ".tif"
             # save file to disk
             try:
-                response = urllib2.urlopen( url )
+                response = urlopen( url )
                 logger.debug( "Fetched data from url %s" % url )
             # ignore network related problems
             except:
