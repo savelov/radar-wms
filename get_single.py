@@ -25,13 +25,13 @@ gml_namespace = "http://www.opengis.net/gml/3.2"
 # sections in config file must match with layer names
 wfs_layers = {
     'fmi_radar_single_dbz':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::dbz',
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::single::dbz',
     'fmi_radar_single_vrad':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::vrad',
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::single::vrad',
     'fmi_radar_single_etop_20':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::etop_20',
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::single::etop_20',
     'fmi_radar_single_hclass':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::hclass'
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::single::hclass'
 
 }
 

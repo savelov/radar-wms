@@ -25,13 +25,13 @@ gml_namespace = "http://www.opengis.net/gml/3.2"
 # sections in config file must match with layer names
 wfs_layers = {
     'fmi_open_composite_dbz': 
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::dbz',
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::dbz',
     'fmi_open_composite_rr1h':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::rr1h',
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::rr1h',
     'fmi_open_composite_rr24h':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::rr24h',
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::rr24h',
     'fmi_open_composite_rr':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::rr'
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::composite::rr'
 }
 
 

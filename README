@@ -6,7 +6,7 @@ Dependencies
 ------------
 * Python version 2.6 or higher
 * SqlAlchemy (http://www.sqlalchemy.org/
-* Mapserver version 6 or later with Python bindings (http://mapserver.org/)   (python-mapscript)
+* Mapserver version 6 or later with Python bindings (http://mapserver.org/)
 * h5py (http://code.google.com/p/h5py/)
 * pyproj (http://code.google.com/p/pyproj/)
 * numpy (http://numpy.scipy.org/)
@@ -14,7 +14,7 @@ Dependencies
 * Apache or any other web server software that can handle cgi requests 
 
 Additional configuration required (ubuntu 18.04) - (by Eugene Savelov savelov@gmail.com)
-apt install libapache2-mod-wsgi ttf-mscorefonts-installer 
+apt install libapache2-mod-wsgi-py3 python3-mapscript ttf-mscorefonts-installer 
 cp fonts.list /usr/share/fonts/truetype/msttcorefonts
 cp nowcast.conf /etc/apache2/sites-enabled
 
