@@ -7,6 +7,10 @@ from cleaner import *
 import configparser
 from configurator import *
 
+from tendo import singleton
+me = singleton.SingleInstance() # will sys.exit(-1) if other instance is running
+
+
 
 tiff_dir_base = config.get("locations","wms_data_dir")
 api_key = config.get( "settings","fmi_api_key")
