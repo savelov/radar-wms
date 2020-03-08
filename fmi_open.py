@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # script fetches FMI Open data and imports it to DB
 
 

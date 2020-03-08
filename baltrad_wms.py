@@ -131,9 +131,12 @@ def wms_request(req,settings):
         # dataset is a combination of timetamp and layer name
         time_object = datetime.strptime(time_value,"%Y-%m-%dT%H:%M:00Z")
         for layer_name in layers_list:
-            radar_dataset = session.query(RadarDataset)\
+            try:
+                radar_dataset = session.query(RadarDataset)\
                     .filter(RadarDataset.name==get_query_layer(layer_name))\
                     .filter(RadarDataset.timestamp==time_object).one()
+            except:
+                continue
             layers[layer_name].data = radar_dataset.geotiff_path
             layers[layer_name].setProjection( radar_dataset.projdef )
             # lon/lat bbox
