@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os
-import ConfigParser
+import configparser
 from datetime import datetime,timedelta
 
 from h5togeotiff import h5togeotiff,H5ConversionSkip

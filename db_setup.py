@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # read config
 from configurator import read_config
 settings = read_config()
