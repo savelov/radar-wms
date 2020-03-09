@@ -140,7 +140,7 @@ def time_series(req,start_time,end_time,layer_name):
         legend_file.write(urlopen(legend_request).read())
         legend_file.close()
         kmz_files["data_path"] = tempfile.mkstemp(prefix='result_', suffix='.kml', dir=tmpdir)[1]
-        ElementTree.ElementTree(kml_object).write ( kmz_files["data_path"], "utf-8")
+        ElementTree.ElementTree(kml_object.getroot()).write ( kmz_files["data_path"], "utf-8")
         #kml_file = open(kmz_files["data_path"],"w")
         #kml_file.write(kmldata)
         #kml_file.close()
