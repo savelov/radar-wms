@@ -92,14 +92,14 @@ def time_series(req,start_time,end_time,layer_name):
         request_string += "SRS=epsg:4326"
         kmz_files = {}
         kmz_output = io.StringIO()
-        kml_object =  ElementTree.fromstring( open( os.path.dirname(os.path.realpath(__file__))+'/baltrad_singlelayer.kml', 'r').read() )
+        kml_object =  ElementTree.parse( os.path.dirname(os.path.realpath(__file__))+'/baltrad_singlelayer.kml')
         root_object = kml_object.find('.//{%s}Folder' % kml_namespace)
         folder = root_object.find('.//{%s}Folder' % kml_namespace)
         folder_name = folder.find('.//{%s}name' % kml_namespace)
         folder_name.text = "BALTRAD+ data from %s to %s" % (timestamps[0],timestamps[-1])
         screen_overlay = folder.find('.//{%s}ScreenOverlay' % kml_namespace)
         description = screen_overlay.find('.//{%s}description' % kml_namespace)
-        description.name = "Legend for BALTRAD+ data"
+        description.text = "Legend for BALTRAD+ data"
         for i in range(len(timestamps)):
             time_value = timestamps[i]
             bbox_value = bboxes[i]

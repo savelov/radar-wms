@@ -24,7 +24,7 @@ def application(environ,start_response):
         content_type = mapscript.msIO_stripStdoutBufferContentType()
     except :
         start_response('200 OK', [('Content-Type', 'text/html')])
-        return ['Error']
+        return [b'no info']
     response = mapscript.msIO_getStdoutBufferBytes()
     status = '200 OK'
     response_headers = [('Content-type', content_type)]
