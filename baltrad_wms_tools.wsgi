@@ -91,7 +91,7 @@ def time_series(req,start_time,end_time,layer_name):
         request_string += "&WIDTH=%i&HEIGHT=%i&" % (kmz_image_width, kmz_image_height)
         request_string += "SRS=epsg:4326"
         kmz_files = {}
-        kmz_output = io.StringIO()
+        kmz_output = io.BytesIO()
         kml_object =  ElementTree.parse( os.path.dirname(os.path.realpath(__file__))+'/baltrad_singlelayer.kml')
         root_object = kml_object.find('.//{%s}Folder' % kml_namespace)
         folder = root_object.find('.//{%s}Folder' % kml_namespace)
