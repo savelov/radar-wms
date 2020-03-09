@@ -7,7 +7,7 @@ from wsgiref.simple_server import make_server
 
 sys.path.append(os.path.dirname(__file__))
 
-import ConfigParser
+import configparser
 from configurator import read_config,config
 from baltrad_wms import get_query_layer
 settings = read_config(tools=True)
@@ -16,8 +16,8 @@ tmpdir = settings["tmpdir"]
 
 from db_setup import *
 
-import StringIO
-from urllib import urlopen
+import io
+from urllib.request import urlopen
 from xml.etree import ElementTree
 import zipfile
 import tempfile
@@ -91,7 +91,7 @@ def time_series(req,start_time,end_time,layer_name):
         request_string += "&WIDTH=%i&HEIGHT=%i&" % (kmz_image_width, kmz_image_height)
         request_string += "SRS=epsg:4326"
         kmz_files = {}
-        kmz_output = StringIO.StringIO()
+        kmz_output = io.StringIO.StringIO()
         kml_object =  ElementTree.fromstring( open( os.path.dirname(os.path.realpath(__file__))+'/baltrad_singlelayer.kml', 'r').read() )
         root_object = kml_object.find('.//{%s}Folder' % kml_namespace)
         folder = root_object.find('.//{%s}Folder' % kml_namespace)
@@ -121,7 +121,7 @@ def time_series(req,start_time,end_time,layer_name):
             #timestamp =  ElementTree.SubElement(ground_overlay, "TimeStamp")
             #when = ElementTree.SubElement(timestamp, "when")
             #when.text = str( timestamps[i] )
-            wms_request = request_string + "&BBOX=%f,%f,%f,%f&" % (data_bbox[0], data_bbox[1], data_bbox[2],data_bbox[3])
+            wms_request = request_string + "&BBOX=%f,%f,%f,%f" % (data_bbox[0], data_bbox[1], data_bbox[2],data_bbox[3])
             latlonbox = ElementTree.SubElement(ground_overlay, "LatLonBox")
             for item in geo_coords.keys():
                 element = ElementTree.SubElement(latlonbox, item)
@@ -163,12 +163,12 @@ def application (environ, start_response):
 
     action = pars["ACTION"].value
     if action=="download_geotiff":
-	content_type = "image/tiff"
-	content, filename = download_geotiff(pars["TIME"].value,pars["LAYER"].value)
+        content_type = "image/tiff"
+        content, filename = download_geotiff(pars["TIME"].value,pars["LAYER"].value)
     elif action=="export_to_kmz":
-	start_time = pars["START_TIME"].value
-	end_time =  pars["END_TIME"].value
-	layer_name = pars["LAYER"].value
+        start_time = pars["START_TIME"].value
+        end_time =  pars["END_TIME"].value
+        layer_name = pars["LAYER"].value
         content_type = "application/vnd.google-earth.kmz"
         content, filename = time_series("kmz",start_time,end_time,layer_name)
     else:
@@ -184,7 +184,7 @@ def application (environ, start_response):
     response_headers = [
         ('Content-Type', content_type),
         ('Content-Length', str(len(content))),
-	('Content-Disposition', attachment_name)
+        ('Content-Disposition', attachment_name)
     ]
 
     start_response(status, response_headers)
