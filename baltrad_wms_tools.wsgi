@@ -36,7 +36,7 @@ def download_geotiff(timestamp,layer_name):
             .filter(RadarDataset.timestamp==time_object).one()
     tiff_path = radar_dataset.geotiff_path
     filename = os.path.basename(tiff_path)
-    content = open(tiff_path).read()
+    content = open(tiff_path,"rb").read()
     return content, filename
 
 def time_series(req,start_time,end_time,layer_name):
@@ -178,7 +178,7 @@ def application (environ, start_response):
 
     session.close()
 
-    attachment_name = "attachment; filename=" + filename.encode('ascii')
+    attachment_name = "attachment; filename=" + filename
 
     status = '200 OK'
     response_headers = [
