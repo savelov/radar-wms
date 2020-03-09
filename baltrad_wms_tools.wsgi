@@ -81,7 +81,7 @@ def time_series(req,start_time,end_time,layer_name):
     if req=="kmz":
         # read bboxes from config
         # calculate image dimensions
-        bbox_0 = map( float, bboxes[0].split(","))
+        bbox_0 = list (map( float, bboxes[0].split(",")))
         kmz_image_height = int ( kmz_image_width * (bbox_0[3]-bbox_0[1]) / (bbox_0[2]-bbox_0[0]) ) 
         request_string = online_resource + "?LAYERS=" + layer_name
         # basic WMS parameters
@@ -91,7 +91,7 @@ def time_series(req,start_time,end_time,layer_name):
         request_string += "&WIDTH=%i&HEIGHT=%i&" % (kmz_image_width, kmz_image_height)
         request_string += "SRS=epsg:4326"
         kmz_files = {}
-        kmz_output = io.StringIO.StringIO()
+        kmz_output = io.StringIO()
         kml_object =  ElementTree.fromstring( open( os.path.dirname(os.path.realpath(__file__))+'/baltrad_singlelayer.kml', 'r').read() )
         root_object = kml_object.find('.//{%s}Folder' % kml_namespace)
         folder = root_object.find('.//{%s}Folder' % kml_namespace)
@@ -103,7 +103,7 @@ def time_series(req,start_time,end_time,layer_name):
         for i in range(len(timestamps)):
             time_value = timestamps[i]
             bbox_value = bboxes[i]
-            data_bbox = map(float, bbox_value.split(",") )
+            data_bbox = list(map(float, bbox_value.split(",") ))
             ground_overlay = ElementTree.SubElement(folder,"GroundOverlay")
             ground_overlay_name = ElementTree.SubElement(ground_overlay, "name")
             ground_overlay_name.text = "Radar data" 
