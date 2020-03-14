@@ -57,9 +57,9 @@ def insert_stations_to_db(values=None):
 
 if __name__ == '__main__':
     # fresh start
-    #answer = raw_input("Erase all? (y/[n]) ")
-    #if answer=="y":
-    #    drop()
+    answer = input("Erase all? (y/[n]) ")
+    if answer=="y":
+        drop()
     answer = input("Create new database? (y/[n]) ")
     if answer=="y":
         create()
