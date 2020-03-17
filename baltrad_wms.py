@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # read config
-import ConfigParser
+import configparser
 from configurator import *
 settings = read_config()
 
@@ -148,8 +148,8 @@ def wms_request(req,settings):
             radar_dataset = session.query(RadarDataset)\
                     .filter(RadarDataset.name==get_query_layer(layer_name))\
                     .order_by(RadarDataset.timestamp.desc()).all()
-	    if len(radar_dataset)==0 : 
-		continue
+            if len(radar_dataset)==0 : 
+                 continue
             layers[layer_name].data = radar_dataset[0].geotiff_path
             layers[layer_name].setProjection( radar_dataset[0].projdef )
             bbox =  map(float,radar_dataset[0].bbox_original.split(",") )

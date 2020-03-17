@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # read config
 from configurator import read_config
 settings = read_config()
@@ -57,10 +57,10 @@ def insert_stations_to_db(values=None):
 
 if __name__ == '__main__':
     # fresh start
-    #answer = raw_input("Erase all? (y/[n]) ")
-    #if answer=="y":
-    #    drop()
-    answer = raw_input("Create new database? (y/[n]) ")
+    answer = input("Erase all? (y/[n]) ")
+    if answer=="y":
+        drop()
+    answer = input("Create new database? (y/[n]) ")
     if answer=="y":
         create()
 

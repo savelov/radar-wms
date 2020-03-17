@@ -1,11 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # script fetches FMI Open data and imports it to DB
-from quicklock import singleton
-singleton('get_single')
+from tendo import singleton
+me = singleton.SingleInstance() # will sys.exit(-1) if other instance is running
 
 from db_setup import *
 from cleaner import *
-import ConfigParser
+import configparser
 from configurator import *
 import os.path
 
@@ -18,20 +18,21 @@ logger = set_logger( "fmi_open" )
 
 from datetime import datetime,timedelta
 import os
-import urllib2
+from urllib.request import urlopen,urlparse
+
 from xml.etree import ElementTree
 gml_namespace = "http://www.opengis.net/gml/3.2"
 
 # sections in config file must match with layer names
 wfs_layers = {
     'fmi_radar_single_dbz':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::dbz',
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::single::dbz',
     'fmi_radar_single_vrad':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::vrad',
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::single::vrad',
     'fmi_radar_single_etop_20':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::etop_20',
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::single::etop_20',
     'fmi_radar_single_hclass':
-    'http://data.fmi.fi/fmi-apikey/{key}/wfs?request=GetFeature&storedquery_id=fmi::radar::single::hclass'
+    'http://opendata.fmi.fi/wfs?request=GetFeature&storedquery_id=fmi::radar::single::hclass'
 
 }
 
@@ -56,7 +57,7 @@ def update():
         # get WFS to get WMS urls
         try:
             wfs_url = wfs_layers[layer].replace("{key}",api_key) 
-            response = urllib2.urlopen( wfs_url )
+            response = urlopen( wfs_url )
             logger.debug( "Data from url %s fetched" % wfs_url )
         # ignore network related problems
         except:
@@ -67,7 +68,7 @@ def update():
         file_references = wfs_response.findall('.//{%s}fileReference' % gml_namespace)
         for ref in file_references:
             url = ref.text
-            query = urllib2.urlparse.urlparse(url).query
+            query = urlparse(url).query
             query = query.split("&")
             for q in query:
                 if q[0:4].lower()=="time":
@@ -83,18 +84,18 @@ def update():
             timestamp = datetime.strptime(time_value,\
                     "%Y-%m-%dT%H:%M:%SZ")
             # search if dataset already exists
-	    if (radar_name.split("_")[0] != "Radar:kesalahti") :
-		continue
-	    if (layer!='fmi_radar_single_etop_20' and float(radar_elevation) > 0.5) :
-		continue
+            if (radar_name.split("_")[0] != "Radar:kesalahti") :
+                continue
+            if (layer!='fmi_radar_single_etop_20' and float(radar_elevation) > 0.5) :
+                continue
             output_filename = tiff_dir + "/" + radar_name.replace("Radar:","")+ time_value.replace(":","")\
                 .replace("-","") + "_"+radar_elevation+ ".tif"
             # skip file fetching if it already exists
-	    if os.path.isfile(output_filename):
-		continue
+            if os.path.isfile(output_filename):
+                continue
             # save file to disk
             try:
-                response = urllib2.urlopen( url )
+                response = urlopen( url )
                 logger.debug( "Fetched data from url %s" % url )
             # ignore network related problems
             except:

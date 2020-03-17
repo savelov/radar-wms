@@ -170,9 +170,9 @@ if __name__ == '__main__':
         geotiff_target = sys.argv[2]
         h5togeotiff(hdf5_source, geotiff_target, "dataset1/data1","int")
     except IndexError:
-        print """\
+        print ("""\
 Usage
 -----
 Convert single HDF5 to GeoTIFF:
  python h5togeotiff.py [HDF5 source file] [GeoTIFF target fi]
-              """
+              """)

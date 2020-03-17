@@ -5,6 +5,8 @@ from collections import OrderedDict
 import pyproj
 import rasterio
 import numpy as np
+import os
+
 from update_gimet_wms import update,clear
 
 ncf_time_format = "%Y-%m-%d %H:%M:%S"
@@ -13,8 +15,7 @@ def open_netcdf(filename, mode, format = "NETCDF4"):
     ncf = cdf.Dataset(filename, mode, format)
     return ncf
 
-def get_data(ncf, timeformat = ncf_time_format):
-    data_var = "precip_probability"
+def get_data(ncf, timeformat = ncf_time_format, data_var='precip_probability'):
     time_var = "time"
     #time_format = "%Y-%m-%d %H:%M:%S"
     startdate = dt.datetime.strptime(ncf.datetime, ncf_time_format)
@@ -25,7 +26,7 @@ def get_data(ncf, timeformat = ncf_time_format):
         data[dt.datetime.strftime(datetime, timeformat)] = ncf[data_var][i]
     return data
 
-def _get_prob(ncf, datetime_str, x, y): 
+def _get_prob(ncf, datetime_str, x, y):
 
     data = get_data(ncf)
     datetime = dt.datetime.strptime(datetime_str,"%Y%m%d%H%M")
@@ -82,10 +83,35 @@ def convert_probability_to_byte(values):
     bytes[values == -1] = 255
     return bytes.astype(np.uint8)
 
-def to_geotiff(ncf, out_folder):
-    startdate = dt.datetime.strptime(ncf.datetime, ncf_time_format)
 
-    n,h,w = ncf.variables["precip_probability"].shape
+def convert_precipitation_to_byte(values):
+    # values[(values >= 5.001)] = 210
+    # values[(values > 0.001) & (values < 0.5)] = 10
+    # values[(values > 0.5001) & (values < 1)] = 40
+    # values[(values > 1.001) & (values < 1.5)] = 70
+    # values[(values > 1.501) & (values < 2)] = 100
+    # values[(values > 2.001) & (values < 3.5)] = 130
+    # values[(values > 3.501) & (values < 4)] = 160
+    # values[(values > 4.001) & (values < 4.5)] = 190
+    # values[(values > 4.501) & (values < 5)] = 200
+    values[values == -1] = 255
+    # return values.astype(np.uint8)
+    return values
+
+
+def to_geotiff(ncf, out_folder):
+    # startdate = dt.datetime.strptime(ncf.datetime, ncf_time_format)
+
+    product = 'precip_probability' if 'precip_probability' in ncf.variables else 'precip_intensity'
+    import os
+    if product == 'precip_probability':
+        out_folder = os.path.join(out_folder, 'nowcast')
+    elif product == 'precip_intensity':
+        out_folder = os.path.join(out_folder, 'prec_intensity')
+        if not os.path.exists(out_folder):
+            os.mkdir(out_folder)
+
+    n,h,w = ncf.variables[product].shape
 
     Xmin = ncf.variables["xc"][0]
     Xmax = ncf.variables["xc"][-1]
@@ -95,27 +121,33 @@ def to_geotiff(ncf, out_folder):
     affine = rasterio.Affine((Xmax - Xmin) / w, 0, Xmin,
                              0, (Ymin - Ymax) / h, Ymax)
 
-    data = get_data(ncf)
+    data = get_data(ncf, data_var=product)
     for key in data:
         data[key][:]=data[key][::-1,:]
 
         datetime = dt.datetime.strptime(key, ncf_time_format)
-        filename = out_folder + "/nowcast_" + dt.datetime.strftime(datetime, "%Y%m%d_%H%M") + ".tiff"
+        if product == 'precip_intensity':
+            pr = 'prec_intensity'
+        else:
+            pr = 'nowcast'
+        filename = out_folder + "/{}_".format(pr) + dt.datetime.strftime(datetime, "%Y%m%d_%H%M") + ".tiff"
         import os
         filename = os.path.realpath(filename)
         if not os.path.exists(os.path.dirname(filename)):
             os.mkdir(os.path.dirname(filename))
         print(filename)
-        img_data = convert_probability_to_byte(data[key])
+        img_data = convert_probability_to_byte(data[key]) if product == 'precip_probability' else convert_precipitation_to_byte(values=data[key].data)
+        dtype = np.uint8 if product == 'precip_probability' else np.float32
         with rasterio.open(filename, 'w', driver='GTiff',
-                               height=h, width=w, count = 1, dtype=np.uint8,
+                               height=h, width=w, count=1, dtype=dtype,
                                crs=ncf.projection, nodata=255, transform=affine) as ncfile:
             ncfile.write_band(1, img_data)
-        update(datetime,ncf.projection,(-w*2*1000, -h*2*1000, w*2*1000, h*2*1000),'nowcast')
+        update(datetime,ncf.projection,(-w*2*1000, -h*2*1000, w*2*1000, h*2*1000),pr)
 
 
-filename = sorted(glob("/home/ubuntu/pysteps-data/out/probab_ensemble_nwc_*.ncf"))[-1]
+if __name__ == '__main__':
+    filename = sorted(glob("/home/ubuntu/pysteps-data/out/probab_ensemble_nwc_*.ncf"))[-1]
 
-ncf = open_netcdf(filename, 'r')
-to_geotiff(ncf, "/home/ubuntu/baltrad_wms_data/nowcast")
-clear()
+    ncf = open_netcdf(filename, 'r')
+    to_geotiff(ncf, "/home/ubuntu/baltrad_wms_data")
+    # clear()

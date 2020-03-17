@@ -7,7 +7,7 @@ from wsgiref.simple_server import make_server
 
 sys.path.append(os.path.dirname(__file__))
 
-import ConfigParser
+import configparser
 from configurator import read_config,config
 from baltrad_wms import get_query_layer
 settings = read_config(tools=True)
@@ -16,8 +16,8 @@ tmpdir = settings["tmpdir"]
 
 from db_setup import *
 
-import StringIO
-from urllib import urlopen
+import io
+from urllib.request import urlopen
 from xml.etree import ElementTree
 import zipfile
 import tempfile
@@ -36,7 +36,7 @@ def download_geotiff(timestamp,layer_name):
             .filter(RadarDataset.timestamp==time_object).one()
     tiff_path = radar_dataset.geotiff_path
     filename = os.path.basename(tiff_path)
-    content = open(tiff_path).read()
+    content = open(tiff_path,"rb").read()
     return content, filename
 
 def time_series(req,start_time,end_time,layer_name):
@@ -81,7 +81,7 @@ def time_series(req,start_time,end_time,layer_name):
     if req=="kmz":
         # read bboxes from config
         # calculate image dimensions
-        bbox_0 = map( float, bboxes[0].split(","))
+        bbox_0 = list (map( float, bboxes[0].split(",")))
         kmz_image_height = int ( kmz_image_width * (bbox_0[3]-bbox_0[1]) / (bbox_0[2]-bbox_0[0]) ) 
         request_string = online_resource + "?LAYERS=" + layer_name
         # basic WMS parameters
@@ -91,19 +91,19 @@ def time_series(req,start_time,end_time,layer_name):
         request_string += "&WIDTH=%i&HEIGHT=%i&" % (kmz_image_width, kmz_image_height)
         request_string += "SRS=epsg:4326"
         kmz_files = {}
-        kmz_output = StringIO.StringIO()
-        kml_object =  ElementTree.fromstring( open( os.path.dirname(os.path.realpath(__file__))+'/baltrad_singlelayer.kml', 'r').read() )
+        kmz_output = io.BytesIO()
+        kml_object =  ElementTree.parse( os.path.dirname(os.path.realpath(__file__))+'/baltrad_singlelayer.kml')
         root_object = kml_object.find('.//{%s}Folder' % kml_namespace)
         folder = root_object.find('.//{%s}Folder' % kml_namespace)
         folder_name = folder.find('.//{%s}name' % kml_namespace)
         folder_name.text = "BALTRAD+ data from %s to %s" % (timestamps[0],timestamps[-1])
         screen_overlay = folder.find('.//{%s}ScreenOverlay' % kml_namespace)
         description = screen_overlay.find('.//{%s}description' % kml_namespace)
-        description.name = "Legend for BALTRAD+ data"
+        description.text = "Legend for BALTRAD+ data"
         for i in range(len(timestamps)):
             time_value = timestamps[i]
             bbox_value = bboxes[i]
-            data_bbox = map(float, bbox_value.split(",") )
+            data_bbox = list(map(float, bbox_value.split(",") ))
             ground_overlay = ElementTree.SubElement(folder,"GroundOverlay")
             ground_overlay_name = ElementTree.SubElement(ground_overlay, "name")
             ground_overlay_name.text = "Radar data" 
@@ -121,7 +121,7 @@ def time_series(req,start_time,end_time,layer_name):
             #timestamp =  ElementTree.SubElement(ground_overlay, "TimeStamp")
             #when = ElementTree.SubElement(timestamp, "when")
             #when.text = str( timestamps[i] )
-            wms_request = request_string + "&BBOX=%f,%f,%f,%f&" % (data_bbox[0], data_bbox[1], data_bbox[2],data_bbox[3])
+            wms_request = request_string + "&BBOX=%f,%f,%f,%f" % (data_bbox[0], data_bbox[1], data_bbox[2],data_bbox[3])
             latlonbox = ElementTree.SubElement(ground_overlay, "LatLonBox")
             for item in geo_coords.keys():
                 element = ElementTree.SubElement(latlonbox, item)
@@ -140,7 +140,7 @@ def time_series(req,start_time,end_time,layer_name):
         legend_file.write(urlopen(legend_request).read())
         legend_file.close()
         kmz_files["data_path"] = tempfile.mkstemp(prefix='result_', suffix='.kml', dir=tmpdir)[1]
-        ElementTree.ElementTree(kml_object).write ( kmz_files["data_path"], "utf-8")
+        ElementTree.ElementTree(kml_object.getroot()).write ( kmz_files["data_path"], "utf-8")
         #kml_file = open(kmz_files["data_path"],"w")
         #kml_file.write(kmldata)
         #kml_file.close()
@@ -163,12 +163,12 @@ def application (environ, start_response):
 
     action = pars["ACTION"].value
     if action=="download_geotiff":
-	content_type = "image/tiff"
-	content, filename = download_geotiff(pars["TIME"].value,pars["LAYER"].value)
+        content_type = "image/tiff"
+        content, filename = download_geotiff(pars["TIME"].value,pars["LAYER"].value)
     elif action=="export_to_kmz":
-	start_time = pars["START_TIME"].value
-	end_time =  pars["END_TIME"].value
-	layer_name = pars["LAYER"].value
+        start_time = pars["START_TIME"].value
+        end_time =  pars["END_TIME"].value
+        layer_name = pars["LAYER"].value
         content_type = "application/vnd.google-earth.kmz"
         content, filename = time_series("kmz",start_time,end_time,layer_name)
     else:
@@ -178,13 +178,13 @@ def application (environ, start_response):
 
     session.close()
 
-    attachment_name = "attachment; filename=" + filename.encode('ascii')
+    attachment_name = "attachment; filename=" + filename
 
     status = '200 OK'
     response_headers = [
         ('Content-Type', content_type),
         ('Content-Length', str(len(content))),
-	('Content-Disposition', attachment_name)
+        ('Content-Disposition', attachment_name)
     ]
 
     start_response(status, response_headers)

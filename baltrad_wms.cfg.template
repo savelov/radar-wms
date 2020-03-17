@@ -313,13 +313,25 @@ level = debug
 80 = <0.1,0,10,204,204,204
 
 [nowcast_style]
-01 = 100%,80,100,235,149,26
-02 = 80%,60,80,223,196,10
-03 = 60%,40,60,241,243,90
-04 = 40%,20,40,64,152,87
-05 = 20%,0,20,108,235,243
-06 = 0%,-1,0,204,204,204
+01 = 100%%,80,100,235,149,26
+02 = 80%%,60,80,223,196,10
+03 = 60%%,40,60,241,243,90
+04 = 40%%,20,40,64,152,87
+05 = 20%%,0,20,108,235,243
+06 = 0%%,-1,0,204,204,204
 
+[prec_intensity_style]
+# SYNTAX: numbe198r = name,from,to,R,G,B
+01 = 0 mm/h,0.0,0.00001,0,0,0
+02 = 0.5 mm/h,0.0001,0.5,189,210,90
+03 = 1 mm/h,0.50001,1.0,110,230,120
+04 = 1.5 mm/h,1.0001,1.5,230,140,10
+05 = 2 mm/h,1.5001,2.0,189,189,190
+06 = 2.5 mm/h,2.0001,2.5,181,183,249
+07 = 3 mm/h,2.5001,3.0,103,107,250
+08 = 3.5 mm/h,3.0001,3.5,3,9,251
+09 = 4 mm/h,3.5001,4.0,67,71,250
+10 = More than 4 mm/h,4.0001,100000.0,23,23,23
 
 # dataset names must be unique!
 # Dataset section names are dataset_1, dataset_2, etc. (no limitation)
@@ -660,3 +672,10 @@ unit = code
 style = nowcast_style
 cleanup_time = 120
 
+[dataset_41]
+name = prec_intensity
+title = Intensity
+dataset_type = geotiff
+unit = code
+style = prec_intensity_style
+cleanup_time = 120

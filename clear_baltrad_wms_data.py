@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from configurator import read_config,config
-import ConfigParser
+import configparser
 import os
 from db_setup import drop
 
@@ -19,6 +19,6 @@ for d in datasets:
         os.rmdir(wms_datadir)
     except OSError:
         pass
-print "Deleted wms files."
+print ("Deleted wms files.")
 drop()
-print "Cleared DB"
+print ("Cleared DB")
