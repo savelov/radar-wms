@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 from wsgiref.simple_server import make_server
-from cgi import parse_qs, escape
+from urllib.parse import parse_qs
+from html import escape
 import json
 import os,sys
 from datetime import datetime
