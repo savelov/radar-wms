@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import mapscript
-from cgi import parse_qs, escape
+from urllib.parse import parse_qs
+from html import escape
 
 # needed to import baltrad_wms.py
 import os,sys
