@@ -15,7 +15,7 @@ Dependencies
 
 Additional configuration required (ubuntu 18.04) - (by Eugene Savelov savelov@gmail.com)
 sudo apt install libapache2-mod-wsgi-py3 python3-mapscript ttf-mscorefonts-installer python3-netcdf4 python3-rasterio python3-pyproj
-sudo a2enmod rewrite
+sudo a2enmod wsgi
 sudo cp fonts.list /usr/share/fonts/truetype/msttcorefonts
 sudo cp nowcast.conf /etc/apache2/sites-enabled
 
