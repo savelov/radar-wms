@@ -14,10 +14,10 @@ Dependencies
 * Apache or any other web server software that can handle cgi requests 
 
 Additional configuration required (ubuntu 18.04) - (by Eugene Savelov savelov@gmail.com)
-apt install libapache2-mod-wsgi-py3 python3-mapscript ttf-mscorefonts-installer python3-netcdf4 python3-rasterio python3-pyproj
-enable wsgi module by creating a link apache2/mods-enabled
-cp fonts.list /usr/share/fonts/truetype/msttcorefonts
-cp nowcast.conf /etc/apache2/sites-enabled
+sudo apt install libapache2-mod-wsgi-py3 python3-mapscript ttf-mscorefonts-installer python3-netcdf4 python3-rasterio python3-pyproj
+sudo a2enmod wsgi
+sudo cp fonts.list /usr/share/fonts/truetype/msttcorefonts
+sudo cp nowcast.conf /etc/apache2/sites-enabled
 
 REST API for nowcasts - retuns 'nan' or probability of precipitation 
 http://localhost/nowcast_wsgi?lon=36.97&lat=55.21
