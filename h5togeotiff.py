@@ -66,8 +66,8 @@ def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_typ
         what = f["what"] # data
 
         # read time from h5 file
-        date_string = what.attrs["date"][0:8]
-        time_string = what.attrs["time"][0:4] # ignore seconds
+        date_string = what.attrs["date"][0:8].decode('utf-8')
+        time_string = what.attrs["time"][0:4].decode('utf-8') # ignore seconds
         starttime = datetime.strptime(date_string+"T"+time_string, "%Y%m%dT%H%M")
         if expiration_time:
             if starttime<expiration_time:
@@ -92,7 +92,7 @@ def h5togeotiff(hdf_files,geotiff_target,dataset_name ="dataset1/data1",data_typ
 #                where.attrs["UL_lat"]!=where.attrs["UR_lat"] ):
 #            raise Exception("non-rectangle datasets not supported")
 
-        proj_text = str(where.attrs["projdef"])
+        proj_text = where.attrs["projdef"].decode('utf-8')
         h5_proj = Proj(proj_text)
         lonlat_proj = Proj(init="epsg:4326")
         # transfrom bounding box from lonlat -> laea
@@ -175,4 +175,5 @@ Usage
 -----
 Convert single HDF5 to GeoTIFF:
  python h5togeotiff.py [HDF5 source file] [GeoTIFF target fi]
-              """)
+              """
+)
