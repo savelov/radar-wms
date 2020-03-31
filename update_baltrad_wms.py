@@ -99,14 +99,15 @@ def update():
                                         "timestamp": timestamp })
                 session.add_all(add_datasets)
                 session.commit()
+                os.remove(os.path.join( h5_dir, h5_file ))
             else:
                 logger.debug ( "File %s already in database. Skip it" % h5_file )
     logger.info ( "Added %i results." % len(return_datasets) )
     logger.debug( "Updating of DB finished" )
-    session.close()
     return return_datasets
 
 if __name__ == '__main__':
     dsets = update()
     for d in read_hdf_datasets():
         clean_up(d["name"],int(d["cleanup_time"]))
+    session.close()
