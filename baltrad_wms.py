@@ -6,6 +6,7 @@ settings = read_config()
 
 from db_setup import *
 import mapscript
+from dateutil.parser import *
 
 def get_query_layer(layer_name):
     if "_contour" in layer_name:
@@ -129,12 +130,24 @@ def wms_request(req,settings):
                 layers[layer_name+layer_type].setExtent( *bbox )
     elif time_value not in (None,"-1",""):
         # dataset is a combination of timetamp and layer name
-        time_object = datetime.strptime(time_value,"%Y-%m-%dT%H:%M:00Z")
+        t0 = None
+        if "/" in time_value: # time interval
+            times = time_value.split("/")
+            t0 = parse(times[0])
+            time_object = parse(times[1])
+        else: # single time
+            time_object = parse(time_value)
         for layer_name in layers_list:
             try:
-                radar_dataset = session.query(RadarDataset)\
-                    .filter(RadarDataset.name==get_query_layer(layer_name))\
-                    .filter(RadarDataset.timestamp==time_object).one()
+                if t0==None:
+                    radar_dataset = session.query(RadarDataset)\
+                        .filter(RadarDataset.name==get_query_layer(layer_name))\
+                        .filter(RadarDataset.timestamp==time_object).one()
+                else:
+                    radar_dataset = session.query(RadarDataset)\
+                        .filter(RadarDataset.name==get_query_layer(layer_name))\
+                        .filter(RadarDataset.timestamp>t0)\
+                        .filter(RadarDataset.timestamp<=time_object).one()                
             except:
                 continue
             layers[layer_name].data = radar_dataset.geotiff_path
