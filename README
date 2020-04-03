@@ -14,7 +14,7 @@ Dependencies
 * Apache or any other web server software that can handle cgi requests 
 
 Additional configuration required (ubuntu 20.04) - (by Eugene Savelov savelov@gmail.com)
-sudo apt install libapache2-mod-wsgi-py3 python3-distutils python3-mapscript ttf-mscorefonts-installer python3-netcdf4 python3-rasterio python3-pyproj
+sudo apt install libapache2-mod-wsgi-py3 python3-distutils python3-mapscript ttf-mscorefonts-installer python3-netcdf4 python3-rasterio python3-pyproj python3-dateutil
 sudo a2enmod wsgi
 sudo cp fonts.list /usr/share/fonts/truetype/msttcorefonts
 sudo cp nowcast.conf /etc/apache2/sites-enabled
