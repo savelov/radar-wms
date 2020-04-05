@@ -6,8 +6,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Композитная карта</title>
     <link rel="stylesheet" href="style.css" type="text/css">
-    <link rel="stylesheet" href="https://openlayers.org/en/v5.3.0/css/ol.css" type="text/css">
-    <script src="https://openlayers.org/en/v5.3.0/build/ol.js"></script>
+    <link rel="stylesheet" href="https://openlayers.org/en/v6.3.0/css/ol.css" type="text/css">
+    <script src="https://openlayers.org/en/v6.3.0/build/ol.js"></script>
     <script src="demo.js"></script>
     </head>
     <body onload="init()">
@@ -15,31 +15,16 @@
         <p id="shortdesc">
             Выбор карты:
             <select id="layer" onchange="javascript:update_layer_params()" >
-              <option value="prec_intensity">PrecipitationIntensity</option>
-              <option value="nowcast">Наукастинг</option>
-              <option value="bufr_phenomena">Опасные явления BUFR</option>
-              <option value="bufr_dbz1">Отражаемость 1км BUFR</option>
-              <option value="bufr_height">Высота ВГО BUFR</option>
-              <option value="bufr_zdr1">Дифференциальная отражаемость 1км BUFR </option>
-     	      <option value="bufr_vel1">Доплер скорость 1км BUFR</option>     
-     	      <option value="bufr_vel2">Доплер скорость 2км BUFR</option>     
-     	      <option value="bufr_vel3">Доплер скорость 3км BUFR</option>     
-     	      <option value="bufr_vel4">Доплер скорость 4км BUFR</option>     
-              <option value="bufr_summ12">Сумма 12ч BUFR </option>
-              <option value="bufr_precip">Интенсивность осадков BUFR</option>
-              <option value="bufr_vlad_phenomena">Опасные явления Дальний Восток BUFR</option>
-              <option value="bufr_vlad_dbz1">Отражаемость Дальний Восток 1км BUFR</option>
-              <option value="bufr_vlad_height">Высота ВГО Дальний Восток BUFR</option>
-              <option value="bufr_vlad_zdr1">Дифференциальная отражаемость Дальний Восток 1км BUFR </option>
-     	      <option value="bufr_vlad_vel1">Доплер скорость Дальний Восток 1км BUFR</option>     
-     	      <option value="bufr_vlad_vel2">Доплер скорость Дальний Восток 2км BUFR</option>     
-     	      <option value="bufr_vlad_vel3">Доплер скорость Дальний Восток 3км BUFR</option>     
-     	      <option value="bufr_vlad_vel4">Доплер скорость Дальний Восток 4км BUFR</option>     
-              <option value="bufr_vlad_summ12">Сумма 12ч Дальний Восток BUFR </option>
-              <option value="bufr_vlad_precip">Интенсивность осадков Дальний Восток BUFR</option>
-              <option value="fmi_radar_single_dbz">FMI Kesalahti (dBZ)</option>
-              <option value="fmi_radar_single_vrad">FMI Kesalahti vrad (m/s)</option>
-              <option value="fmi_radar_single_etop_20">FMI Kesalahti height (km)</option>
+              <option value="bufr_phenomena,bufr_novosib_phenomena,bufr_vlad_phenomena">Опасные явления BUFR</option>
+              <option value="bufr_dbz1,bufr_novosib_dbz1,bufr_vlad_dbz1">Отражаемость 1км BUFR</option>
+              <option value="bufr_height,bufr_novosib_height,bufr_vlad_height">Высота ВГО BUFR</option>
+              <option value="bufr_zdr1,bufr_novosib_zdr1,bufr_vlad_zdr1">Дифференциальная отражаемость 1км BUFR </option>
+     	      <option value="bufr_vel1,bufr_novosib_vel1,bufr_vlad_vel1">Доплер скорость 1км BUFR</option>     
+     	      <option value="bufr_vel2,bufr_novosib_vel2,bufr_vlad_vel2">Доплер скорость 2км BUFR</option>     
+     	      <option value="bufr_vel3,bufr_novosib_vel3,bufr_vlad_vel3">Доплер скорость 3км BUFR</option>     
+     	      <option value="bufr_vel4,bufr_novosib_vel4,bufr_vlad_vel4">Доплер скорость 4км BUFR</option>     
+              <option value="bufr_summ12,bufr_vlad_summ12">Сумма 12ч BUFR </option>
+              <option value="bufr_precip,bufr_novosib_precip,bufr_vlad_precip">Интенсивность осадков BUFR</option>
               <option value="fmi_open_composite_dbz">FMI Open composite (dBZ)</option>
               <option value="fmi_open_composite_rr">FMI Open composite (mm/h)</option>
               <option value="fmi_open_composite_rr1h">FMI Open composite (accumulated 1 h)</option>
