@@ -6,8 +6,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Композитная карта</title>
     <link rel="stylesheet" href="style.css" type="text/css">
-    <link rel="stylesheet" href="https://openlayers.org/en/v6.3.0/css/ol.css" type="text/css">
-    <script src="https://openlayers.org/en/v6.3.0/build/ol.js"></script>
+    <link rel="stylesheet" href="https://openlayers.org/en/v6.3.1/css/ol.css" type="text/css">
+    <script src="https://openlayers.org/en/v6.3.1/build/ol.js"></script>
     <script src="demo.js"></script>
     </head>
     <body onload="init()">
@@ -29,15 +29,15 @@
               <option value="fmi_open_composite_rr">FMI Open composite (mm/h)</option>
               <option value="fmi_open_composite_rr1h">FMI Open composite (accumulated 1 h)</option>
               <option value="fmi_open_composite_rr24h">FMI Open composite (accumulated 24 h)</option>
--->            </select>
+            </select>
             Timestamp: 
             <select id="timestamps" onchange="javascript:update_layer_params();">
-               <option id="" value="-1">default</select>
+               <option id="" value="-1">default</option>
             </select>
             <a href="#" onclick="javascript:go('down')">[&lt;--]</a> 
-            <a href="#" onclick="javascript:movie('down')">[&lt&lt;-]</a> 
+            <a href="#" onclick="javascript:movie('down')">[&lt;&lt;-]</a> 
             <a href="#" onclick="javascript:movie('stop')">[stop]</a> 
-            <a href="#" onclick="javascript:movie('up')">[-&gt&gt;]</a> 
+            <a href="#" onclick="javascript:movie('up')">[-&gt;&gt;]</a> 
             <a href="#" onclick="javascript:go('up')">[--&gt;]</a> 
 	    <input type="checkbox" name="oper" value="On" checked> Оперативный режим
         </p>
@@ -52,12 +52,12 @@
             <br/><br/>
             От:<br/>
             <select id="starttime">
-               <option id="">default</select>
+               <option id="">default</option>
             </select>
             <br/>
             до:<br/>
             <select id="endtime">
-               <option id="">default</select>
+               <option id="">default</option>
             </select>
             <br/>
             <a href="#" onclick="javascript:export_to_kmz();">Сгенерировать KMZ файл</a>
