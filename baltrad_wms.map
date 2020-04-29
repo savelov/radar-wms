@@ -9,7 +9,8 @@ MAP
  # CONFIG "MS_ERRORFILE" "stderr"
   #CONFIG "MS_ERRORFILE" "/tmp/ms_error.txt"
   IMAGECOLOR 255 255 255
-  MAXSIZE 4096
+  SIZE 5000 4096
+  MAXSIZE 5000
   STATUS ON
   TRANSPARENT ON
   FONTSET "/usr/share/fonts/truetype/msttcorefonts/fonts.list"
