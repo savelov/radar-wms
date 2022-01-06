@@ -117,7 +117,7 @@ function update_meta () {
             var doc = StringToXML(xmlhttp.responseText);
             var layers = doc.getElementsByTagName("Layer")[0].getElementsByTagName("Layer");
             for (i=0;i<layers.length;i++) {
-                if (layers[i].getElementsByTagName("Name")[0].childNodes[0].nodeValue.split(",")[0]==layer_name) {
+                if (layers[i].getElementsByTagName("Name")[0].childNodes[0].nodeValue.split(",")[0]==layer_name.split(",")[0]) {
                     var time_values = getDataOfImmediateChild(layers[i], "Extent").split(",");
                     var select = document.getElementsByTagName("select")[1];
                     select.options.length = 0;
@@ -254,11 +254,11 @@ function StringToXML (text) {
 }
 
 function export_to_geotiff () {
-    window.location = wms_tools_url + "?ACTION=download_geotiff&TIME=" + time_value + "&LAYER=" + layer_name;
+    window.location = wms_tools_url + "?ACTION=download_geotiff&TIME=" + time_value + "&LAYER=" + layer_name.split(",")[0];
 }
 
 function view_accumulated_rain () {
-    window.location = wms_tools_url + "?ACTION=accumulated_rain&TIME=" + time_value + "&LAYER=" + layer_name;
+    window.location = wms_tools_url + "?ACTION=accumulated_rain&TIME=" + time_value + "&LAYER=" + layer_name.split(",")[0];
 }
 
 function export_to_kmz () {
@@ -268,5 +268,5 @@ function export_to_kmz () {
         alert( "check start and end times" )
         return
     }
-    window.location = wms_tools_url + "?ACTION=export_to_kmz&START_TIME=" + start_time + "&END_TIME=" + end_time + "&LAYER=" + layer_name;
+    window.location = wms_tools_url + "?ACTION=export_to_kmz&START_TIME=" + start_time + "&END_TIME=" + end_time + "&LAYER=" + layer_name.split(",")[0];
 }
