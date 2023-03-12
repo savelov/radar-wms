@@ -9,16 +9,14 @@ MAP
  # CONFIG "MS_ERRORFILE" "stderr"
   #CONFIG "MS_ERRORFILE" "/tmp/ms_error.txt"
   IMAGECOLOR 255 255 255
-  SIZE 5000 4096
+  SIZE 4096 4096
   MAXSIZE 5000
   STATUS ON
-  TRANSPARENT ON
   FONTSET "/usr/share/fonts/truetype/msttcorefonts/fonts.list"
 
 LEGEND
    STATUS ON
    KEYSIZE 16 10
-   TRANSPARENT ON
    LABEL
       TYPE TRUETYPE
       FONT "Arial"
@@ -62,6 +60,7 @@ END
       "wms_getmap_formatlist" "image/png,image/gif,GIF"
       "wms_feature_info_mime_type" "text/html"
       "wfs_maxfeatures" "1"
+      "wms_allow_getmap_without_styles" "true"
     END
   END
 END
