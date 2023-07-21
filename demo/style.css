@@ -44,6 +44,11 @@ h1 {
     border: 1px solid #ccc;
     float: left;
 }
+.locate {
+        top: 23em;
+        left: .5em;
+}
+
 #legend {
     width: 200px;
     float: left;

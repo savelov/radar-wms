@@ -10,8 +10,8 @@ var lineLayer;
 var layer_name;
 var first_update = true;
 var time_value = -1; // current time
-// update every 1 minutes
-var updater = setInterval(update_times_and_refresh,60000);
+// update every 5 minutes
+var updater = setInterval(update_times_and_refresh,300000);
 
 var bearing=45;
 var interval_id=0;
@@ -89,17 +89,63 @@ function init() {
       });
 
       map = new ol.Map({
-        layers: [ new ol.layer.Tile({ source: new ol.source.OSM() }), wmsLayer, lineLayer],
+        layers: [ new ol.layer.Tile({ source: new ol.source.OSM({ 
+             url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' }) 
+              }), wmsLayer, lineLayer],
         target: 'map',
         view: view
       });
 
-        zoomslider = new ol.control.ZoomSlider();
-        map.addControl(zoomslider);
 //    map.addControl(new OpenLayers.Control.LayerSwitcher());
 
+     const source1 = new ol.source.Vector();
+     const layer = new ol.layer.Vector({
+       source: source1,
+      });
+     map.addLayer(layer);
 
-      map.on('click',  findLayerClick)
+    navigator.geolocation.watchPosition(
+      function (pos) {
+    const coords = [pos.coords.longitude, pos.coords.latitude];
+    const accuracy = ol.geom.Polygon.circular(coords, pos.coords.accuracy);
+    source1.clear(true);
+    source1.addFeatures([
+      new ol.Feature(
+        accuracy.transform('EPSG:4326', map.getView().getProjection())
+      ),
+      new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat(coords))),
+    ]);
+  },
+  function (OAerror) {
+    alert(`ERROR: ${error.message}`);
+  },
+  {
+    enableHighAccuracy: true,
+  }
+);
+
+    zoomslider = new ol.control.ZoomSlider()
+    map.addControl(zoomslider);
+
+
+const locate = document.createElement('div');
+locate.className = 'ol-control ol-unselectable locate';
+locate.innerHTML = '<button title="Locate me">◎</button>';
+locate.addEventListener('click', function () {
+  if (!source1.isEmpty()) {
+    map.getView().fit(source1.getExtent(), {
+      maxZoom: 7,
+      duration: 500,
+    });
+ }
+});
+map.addControl(
+  new ol.control.Control({
+    element: locate,
+  })
+);
+
+    map.on('click',  findLayerClick)
 
     update_meta();
     update_layer_params();
@@ -130,7 +176,7 @@ function update_meta () {
                     start_select.selectedIndex = 5;
                     end_select.innerHTML = select.innerHTML;
                     var legend_url = layers[i].getElementsByTagName("LegendURL")[0].getElementsByTagName("OnlineResource")[0].getAttributeNS('http://www.w3.org/1999/xlink', 'href');
-                    document.getElementById("map_legend").src = legend_url;
+                    document.getElementById("map_legend").src = legend_url.replace('http://','https://');
                     if (time_value==-1) {
                         time_value = document.getElementsByTagName("select")[1].value;
                     } else {
