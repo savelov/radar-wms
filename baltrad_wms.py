@@ -110,7 +110,8 @@ def wms_request(req,settings):
                         .order_by(RadarDataset.timestamp.desc()).all()
                 radar_timestamps = []
                 for r in radar_datasets:
-                    radar_timestamps.append(r.timestamp.strftime("%Y-%m-%dT%H:%M:00Z"))
+                    if r is not None:
+                         radar_timestamps.append(r.timestamp.strftime("%Y-%m-%dT%H:%M:00Z"))
                 if len(radar_timestamps)==0:
                     continue
                 try: # old mapserver
@@ -167,7 +168,7 @@ def wms_request(req,settings):
             layers[layer_name].setProjection( radar_dataset[0].projdef )
             bbox =  map(float,radar_dataset[0].bbox_original.split(",") )
             layers[layer_name].setExtent( *bbox )
-    session.close()
+    session.remove()
 #    map_object.save("mymapfile.map")
     return map_object
 

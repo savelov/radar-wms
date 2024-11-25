@@ -6,8 +6,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Композитная карта</title>
     <link rel="stylesheet" href="style.css" type="text/css">
-    <script src="https://cdn.jsdelivr.net/npm/ol@v7.4.0/dist/ol.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
+    <script src="https://cdn.jsdelivr.net/npm/ol@v10.2.1/dist/ol.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.2.1/ol.css">
     <script src="demo.js"></script>
     </head>
     <body onload="init()">
@@ -36,11 +36,12 @@
             <select id="timestamps" onchange="javascript:update_layer_params();">
                <option id="" value="-1">default</option>
             </select>
-            <a href="#" onclick="javascript:go('down')">[&lt;--]</a> 
-            <a href="#" onclick="javascript:movie('down')">[&lt;&lt;-]</a> 
-            <a href="#" onclick="javascript:movie('stop')">[stop]</a> 
-            <a href="#" onclick="javascript:movie('up')">[-&gt;&gt;]</a> 
-            <a href="#" onclick="javascript:go('up')">[--&gt;]</a> 
+      <button type="button" onclick="javascript:go('down')" style="font-size: 100%;">&#8592;</button>
+      <button type="button" onclick="javascript:movie('down')" style="font-size: 100%;">&twoheadleftarrow;</button>
+      <button type="button" onclick="javascript:movie('stop')" style="font-size: 100%;">stop</button>
+      <button type="button" onclick="javascript:movie('up')" style="font-size: 100%;">&twoheadrightarrow;</button>
+      <button type="button" onclick="javascript:go('up')" style="font-size: 100%;">&#8594;</button>
+
 	    <input type="checkbox" name="oper" value="On" checked> Оперативный режим
         </p>
           <div id="map" class="map"></div>

@@ -226,21 +226,13 @@ function go(direction) {
  */
 function findLayerClick(event) {
 
-    var url = wms_url+'?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo'+
-	    '&EXCEPTIONS=application%2Fvnd.ogc.se_xml'+
-	    '&BBOX='+map.getView().calculateExtent(map.getSize())+
-	    '&MAX_FEATURES=1'+
-	    '&X='+event.pixel[0] + 
-	    '&Y='+event.pixel[1] + 
-            '&INFO_FORMAT=text%2Fhtml' +
-            '&QUERY_LAYERS='+ layer_name +
-            '&LAYERS='+ layer_name +
-	    '&FORMAT=image%2Fpng' +
-	    '&TIME='+ time_value +
-	    '&FEATURE_COUNT=1' +
-	    '&SRS=EPSG%3A3857' +
-	    '&WIDTH=' + map.getSize()[0] + 
-	    '&HEIGHT=' + map.getSize()[1];
+  const viewResolution = /** @type {number} */ (map.getView().getResolution());
+  const url = wmsLayer.getSource().getFeatureInfoUrl(
+    event.coordinate,
+    viewResolution,
+    map.getView().getProjection(),
+    {'INFO_FORMAT': 'text/html'},
+  );
 
         if (url) {
           document.getElementById('featureinfo').innerHTML =

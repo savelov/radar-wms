@@ -11,10 +11,10 @@ from sqlalchemy.pool import StaticPool
 from datetime import datetime
 
 engine = create_engine( settings["db_uri"], echo=False,
-                    connect_args={'check_same_thread':False},
+                    connect_args={'check_same_thread':False, 'timeout':100},
                     poolclass=StaticPool)
-Session = sessionmaker(bind=engine)
-session = Session()
+session = scoped_session(sessionmaker(bind=engine))
+#session = Session()
 
 metadata = MetaData(engine)
 Base = declarative_base(metadata=metadata)
@@ -57,9 +57,9 @@ def insert_stations_to_db(values=None):
 
 if __name__ == '__main__':
     # fresh start
-    answer = input("Erase all? (y/[n]) ")
-    if answer=="y":
-        drop()
+    #answer = raw_input("Erase all? (y/[n]) ")
+    #if answer=="y":
+    #    drop()
     answer = input("Create new database? (y/[n]) ")
     if answer=="y":
         create()
