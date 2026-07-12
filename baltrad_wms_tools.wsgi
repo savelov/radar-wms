@@ -31,7 +31,7 @@ kml_namespace = "http://www.opengis.net/kml/2.2"
 
 def download_geotiff(timestamp,layer_name):
     time_object = datetime.strptime(timestamp,"%Y-%m-%dT%H:%M:00Z")
-    radar_dataset = session.query(RadarDataset)\
+    radar_dataset = read_session.query(RadarDataset)\
             .filter(RadarDataset.name==get_query_layer(layer_name))\
             .filter(RadarDataset.timestamp==time_object).one()
     tiff_path = radar_dataset.geotiff_path
@@ -43,7 +43,7 @@ def time_series(req,start_time,end_time,layer_name):
     # read time values as objects
     start = datetime.strptime(start_time,"%Y-%m-%dT%H:%M:00Z")
     end = datetime.strptime(end_time,"%Y-%m-%dT%H:%M:00Z")
-    radar_datasets = session.query(RadarDataset)\
+    radar_datasets = read_session.query(RadarDataset)\
             .filter(RadarDataset.name==get_query_layer(layer_name))\
             .filter(RadarDataset.timestamp>=start)\
             .filter(RadarDataset.timestamp<=end)
@@ -158,6 +158,13 @@ def time_series(req,start_time,end_time,layer_name):
 
 
 def application (environ, start_response):
+    try:
+        return handle_request(environ, start_response)
+    finally:
+        # release the read connection back to the pool after every request
+        read_session.remove()
+
+def handle_request (environ, start_response):
 
     pars = cgi.FieldStorage(fp=environ['wsgi.input'],environ=environ)
 
@@ -175,8 +182,6 @@ def application (environ, start_response):
         content_type = "text/plain"
         filename = "error.txt"
         content = "unknown action"
-
-    session.close()
 
     attachment_name = "attachment; filename=" + filename
 

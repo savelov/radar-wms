@@ -34,33 +34,37 @@ def update(timestamp,projection,bbox,name):
         style="Gimet_dbzh_style"
         title="GIMET reflectivity (dBZ)"
 
-        radar_datasets = session.query(RadarDataset)\
-                    .filter(RadarDataset.geotiff_path==tiff_path)\
-                    .filter(RadarDataset.name==name)
-            # continue with next file if result is already in DB
-        if radar_datasets.count()>0:
-                logger.debug ( "File %s already in database" % tiff_path )
-                return None
+        # WAL allows N readers + 1 writer: serialize the check+insert phase
+        # so concurrent pipeline scripts never write at the same time
+        with write_lock():
+            radar_datasets = session.query(RadarDataset)\
+                        .filter(RadarDataset.geotiff_path==tiff_path)\
+                        .filter(RadarDataset.name==name)
+                # continue with next file if result is already in DB
+            if radar_datasets.count()>0:
+                    logger.debug ( "File %s already in database" % tiff_path )
+                    session.close()
+                    return None
 
-        logger.info( "Add new dataset: %s:%s to DB." % (name,str(timestamp)) )
-        add_datasets = [(
-                    RadarDataset(
-                        name = name,
-                        timestamp = timestamp,
-                        geotiff_path = tiff_path,
-                        hdf_path = None,
-                        projdef = projection,
-                        bbox_original = str(bbox).strip('()'),
-                        dataset_type = dataset_type,
-                        unit = unit,
-                        style = style,
-                        title = title
-                    )
-                )]
-        return_datasets.append({"name": name, 
-                                        "timestamp": timestamp })
-        session.add_all(add_datasets)
-        session.commit()
+            logger.info( "Add new dataset: %s:%s to DB." % (name,str(timestamp)) )
+            add_datasets = [(
+                        RadarDataset(
+                            name = name,
+                            timestamp = timestamp,
+                            geotiff_path = tiff_path,
+                            hdf_path = None,
+                            projdef = projection,
+                            bbox_original = str(bbox).strip('()'),
+                            dataset_type = dataset_type,
+                            unit = unit,
+                            style = style,
+                            title = title
+                        )
+                    )]
+            return_datasets.append({"name": name,
+                                            "timestamp": timestamp })
+            session.add_all(add_datasets)
+            session.commit()
         logger.info ( "Added %i results." % len(return_datasets) )
         logger.debug( "Updating of DB finished" )
         session.close()

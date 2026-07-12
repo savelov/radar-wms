@@ -4,19 +4,75 @@ from configurator import read_config
 settings = read_config()
 
 from sqlalchemy import *
+from sqlalchemy import event
 from sqlalchemy.orm import *
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.pool import StaticPool
 
 from datetime import datetime
+from contextlib import contextmanager
+import fcntl
 
-engine = create_engine( settings["db_uri"], echo=False,
-                    connect_args={'check_same_thread':False, 'timeout':100},
-                    poolclass=StaticPool)
+# filesystem path of the sqlite database (used for the writer lock and
+# for cache invalidation on the WMS side)
+db_path = settings["db_uri"].split("///")[-1]
+
+def make_engine(readonly=False):
+    """Create a WAL-mode engine.
+
+    WAL lets N readers run concurrently with 1 writer: readers never block
+    the writer and vice versa. The default QueuePool gives every WSGI thread
+    its own connection (the old StaticPool serialized all threads on one).
+    Read-only engines additionally get query_only so a WMS request can never
+    accidentally write.
+    """
+    engine = create_engine(settings["db_uri"], echo=False,
+                        pool_pre_ping=True,
+                        connect_args={"check_same_thread": False, "timeout": 30})
+
+    @event.listens_for(engine, "connect")
+    def _set_pragmas(dbapi_con, _):
+        cur = dbapi_con.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA busy_timeout=30000")
+        if readonly:
+            cur.execute("PRAGMA query_only=ON")
+        cur.close()
+
+    return engine
+
+# writer engine/session: default, used by the updater scripts
+# (update_gimet_wms.py, update_baltrad_wms.py, fmi_open.py, cleaner.py, ...)
+engine = make_engine()
 session = scoped_session(sessionmaker(bind=engine))
-#session = Session()
 
-metadata = MetaData(engine)
+# reader engine/session: used by the WMS request handlers
+# (baltrad_wms.py, baltrad_wms_tools). Call read_session.remove() at the end
+# of every request — a leaked read transaction pins the WAL file and blocks
+# checkpointing.
+read_engine = make_engine(readonly=True)
+read_session = scoped_session(sessionmaker(bind=read_engine))
+
+@contextmanager
+def write_lock():
+    """Serialize the DB-writing phase across pipeline processes.
+
+    WAL allows many readers plus one writer, not concurrent writers; hold
+    this lock around the query-check + insert/delete + commit phase of any
+    script that writes.
+    """
+    lock_file = open(db_path + ".lock", "w")
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(lock_file, fcntl.LOCK_UN)
+        lock_file.close()
+
+try:
+    metadata = MetaData(engine) # SQLAlchemy 1.x
+except Exception:
+    metadata = MetaData()       # SQLAlchemy 2.x dropped bound metadata
 Base = declarative_base(metadata=metadata)
 
 class RadarDataset(Base):
@@ -36,12 +92,12 @@ class RadarDataset(Base):
 def drop():
     "use with care"
     try:
-        metadata.drop_all()
+        metadata.drop_all(engine)
     except:
         pass
 
 def create():
-    metadata.create_all()
+    metadata.create_all(engine)
 
 def insert_stations_to_db(values=None):
     "stations db must be dropped"
@@ -63,4 +119,3 @@ if __name__ == '__main__':
     answer = input("Create new database? (y/[n]) ")
     if answer=="y":
         create()
-

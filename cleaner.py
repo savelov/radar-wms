@@ -21,17 +21,19 @@ def clean_up(dataset_name,expiration_time_in_hours):
     # read cleanup expiration time from config
     logger.debug ("Clean up results older than %i hours" % expiration_time_in_hours )
     expiration_time = read_expiration_time(expiration_time_in_hours)
-    radar_datasets = session.query(RadarDataset)\
-            .filter(RadarDataset.name==dataset_name)\
-            .filter(RadarDataset.timestamp<expiration_time)
-    for item in radar_datasets.all():
-        # delete file if it exists
-        try:
-            os.remove(item.geotiff_path)
-        except OSError:
-            pass
-    logger.info ( "Removed %i results from dataset %s " % \
-            (radar_datasets.count(), dataset_name ) )
-    radar_datasets.delete()
-    session.commit()
+    # single-writer discipline: serialize with the updater scripts
+    with write_lock():
+        radar_datasets = session.query(RadarDataset)\
+                .filter(RadarDataset.name==dataset_name)\
+                .filter(RadarDataset.timestamp<expiration_time)
+        for item in radar_datasets.all():
+            # delete file if it exists
+            try:
+                os.remove(item.geotiff_path)
+            except OSError:
+                pass
+        logger.info ( "Removed %i results from dataset %s " % \
+                (radar_datasets.count(), dataset_name ) )
+        radar_datasets.delete()
+        session.commit()
     logger.debug( "Clean-up procedure for dataset %s finished" % dataset_name )

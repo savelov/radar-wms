@@ -7,9 +7,17 @@ from html import escape
 import os,sys
 sys.path.append(os.path.dirname(__file__))
 
-from baltrad_wms import read_config,wms_request
+from baltrad_wms import read_config,wms_request,read_session
 
 def application(environ,start_response):
+    try:
+        return handle_request(environ,start_response)
+    finally:
+        # return the connection to the pool and drop any open read
+        # transaction — a leaked session pins the WAL file
+        read_session.remove()
+
+def handle_request(environ,start_response):
     # read config
     req = mapscript.OWSRequest()
     req.type = mapscript.MS_GET_REQUEST

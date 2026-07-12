@@ -6,12 +6,62 @@ settings = read_config()
 
 from db_setup import *
 import mapscript
+import os
+import threading
+from datetime import timezone
 from dateutil.parser import *
 
 def get_query_layer(layer_name):
     if "_contour" in layer_name:
         layer_name = layer_name.replace("_contour","")
     return layer_name
+
+# In-process cache of per-layer dataset lists. The ingest scripts commit a
+# few times per hour, so most WMS requests never need to open the database:
+# the cache is invalidated only when the DB file (or its -wal sidecar,
+# which is where WAL-mode commits land before a checkpoint) changes.
+_cache_lock = threading.Lock()
+_cache = {"stamp": None, "layers": {}}
+
+def _db_stamp():
+    stamp = []
+    for path in (db_path, db_path + "-wal"):
+        try:
+            stamp.append(os.path.getmtime(path))
+        except OSError:
+            stamp.append(None)
+    return tuple(stamp)
+
+def get_layer_datasets(layer_name):
+    "Datasets of a layer ordered newest first, cached until the DB changes."
+    stamp = _db_stamp()
+    with _cache_lock:
+        if stamp != _cache["stamp"]:
+            _cache["layers"].clear()
+            _cache["stamp"] = stamp
+        if layer_name in _cache["layers"]:
+            return _cache["layers"][layer_name]
+    try:
+        rows = read_session.query(RadarDataset)\
+                .filter(RadarDataset.name==layer_name)\
+                .order_by(RadarDataset.timestamp.desc()).all()
+        datasets = [{"timestamp": r.timestamp,
+                     "geotiff_path": r.geotiff_path,
+                     "projdef": r.projdef,
+                     "bbox_original": r.bbox_original} for r in rows]
+    finally:
+        # release the connection back to the pool immediately: an open read
+        # transaction would pin the WAL file and block checkpointing
+        read_session.remove()
+    with _cache_lock:
+        _cache["layers"][layer_name] = datasets
+    return datasets
+
+def _naive_utc(dt):
+    "DB timestamps are naive UTC; normalize aware times (e.g. '...Z') to match."
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 def wms_request(req,settings):
     map_object = mapscript.mapObj( settings["mapfile_path"] )
@@ -105,13 +155,11 @@ def wms_request(req,settings):
             else:
                 layer_types = ("",)
             for layer_type in layer_types:
-                radar_datasets = session.query(RadarDataset)\
-                        .filter(RadarDataset.name==layer_name)\
-                        .order_by(RadarDataset.timestamp.desc()).all()
+                radar_datasets = get_layer_datasets(layer_name)
                 radar_timestamps = []
                 for r in radar_datasets:
                     if r is not None:
-                         radar_timestamps.append(r.timestamp.strftime("%Y-%m-%dT%H:%M:00Z"))
+                         radar_timestamps.append(r["timestamp"].strftime("%Y-%m-%dT%H:%M:00Z"))
                 if len(radar_timestamps)==0:
                     continue
                 try: # old mapserver
@@ -121,12 +169,12 @@ def wms_request(req,settings):
                     layers[layer_name+layer_type].setMetaData("wms_timeextent", ",".join(radar_timestamps))
                     layers[layer_name+layer_type].setMetaData("wms_timedefault", radar_timestamps[0])
                 # setup projection definition
-                projdef = radar_datasets[0].projdef
+                projdef = radar_datasets[0]["projdef"]
                 if not "epsg" in projdef:
                     projdef = "epsg:3785" # quite near default settings, affects only bounding boxes
                 layers[layer_name+layer_type].setProjection( projdef )
-                layers[layer_name+layer_type].data = radar_datasets[0].geotiff_path
-                bbox = radar_datasets[0].bbox_original
+                layers[layer_name+layer_type].data = radar_datasets[0]["geotiff_path"]
+                bbox = radar_datasets[0]["bbox_original"]
                 bbox = map(float, bbox.split(","))
                 layers[layer_name+layer_type].setExtent( *bbox )
     elif time_value not in (None,"-1",""):
@@ -134,41 +182,38 @@ def wms_request(req,settings):
         t0 = None
         if "/" in time_value: # time interval
             times = time_value.split("/")
-            t0 = parse(times[0])
-            time_object = parse(times[1])
+            t0 = _naive_utc(parse(times[0]))
+            time_object = _naive_utc(parse(times[1]))
         else: # single time
-            time_object = parse(time_value)
+            time_object = _naive_utc(parse(time_value))
         for layer_name in layers_list:
-            try:
+            radar_dataset = None
+            for r in get_layer_datasets(get_query_layer(layer_name)):
                 if t0==None:
-                    radar_dataset = session.query(RadarDataset)\
-                        .filter(RadarDataset.name==get_query_layer(layer_name))\
-                        .filter(RadarDataset.timestamp==time_object).one()
-                else:
-                    radar_dataset = session.query(RadarDataset)\
-                        .filter(RadarDataset.name==get_query_layer(layer_name))\
-                        .filter(RadarDataset.timestamp>t0)\
-                        .filter(RadarDataset.timestamp<=time_object).one()                
-            except:
+                    if r["timestamp"]==time_object:
+                        radar_dataset = r
+                        break
+                elif t0 < r["timestamp"] <= time_object:
+                    # datasets are sorted newest first
+                    radar_dataset = r
+                    break
+            if radar_dataset is None:
                 continue
-            layers[layer_name].data = radar_dataset.geotiff_path
-            layers[layer_name].setProjection( radar_dataset.projdef )
+            layers[layer_name].data = radar_dataset["geotiff_path"]
+            layers[layer_name].setProjection( radar_dataset["projdef"] )
             # lon/lat bbox
-            bbox =  map(float,radar_dataset.bbox_original.split(",") )
+            bbox =  map(float,radar_dataset["bbox_original"].split(",") )
             layers[layer_name].setExtent( *bbox )
     else:
         for layer_name in layers_list:
             # get newest result if timestamp is missing
-            radar_dataset = session.query(RadarDataset)\
-                    .filter(RadarDataset.name==get_query_layer(layer_name))\
-                    .order_by(RadarDataset.timestamp.desc()).all()
-            if len(radar_dataset)==0 : 
+            radar_dataset = get_layer_datasets(get_query_layer(layer_name))
+            if len(radar_dataset)==0 :
                  continue
-            layers[layer_name].data = radar_dataset[0].geotiff_path
-            layers[layer_name].setProjection( radar_dataset[0].projdef )
-            bbox =  map(float,radar_dataset[0].bbox_original.split(",") )
+            layers[layer_name].data = radar_dataset[0]["geotiff_path"]
+            layers[layer_name].setProjection( radar_dataset[0]["projdef"] )
+            bbox =  map(float,radar_dataset[0]["bbox_original"].split(",") )
             layers[layer_name].setExtent( *bbox )
-    session.remove()
 #    map_object.save("mymapfile.map")
     return map_object
 
