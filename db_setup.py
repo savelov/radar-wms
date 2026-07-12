@@ -32,11 +32,14 @@ def make_engine(readonly=False):
     @event.listens_for(engine, "connect")
     def _set_pragmas(dbapi_con, _):
         cur = dbapi_con.cursor()
-        cur.execute("PRAGMA journal_mode=WAL")
-        cur.execute("PRAGMA synchronous=NORMAL")
-        cur.execute("PRAGMA busy_timeout=30000")
         if readonly:
+            # journal_mode is a persistent property of the DB file and
+            # switching it writes to the header — only the writer sets it
             cur.execute("PRAGMA query_only=ON")
+        else:
+            cur.execute("PRAGMA journal_mode=WAL")
+            cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA busy_timeout=30000")
         cur.close()
 
     return engine
