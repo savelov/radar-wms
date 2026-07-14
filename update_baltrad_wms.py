@@ -95,10 +95,14 @@ def update():
                         title = d["title"]
                     )
                 )]
-                return_datasets.append({"name": d["name"], 
+                return_datasets.append({"name": d["name"],
                                         "timestamp": timestamp })
-                session.add_all(add_datasets)
-                session.commit()
+                # single-writer discipline: serialize the commit with the
+                # other pipeline scripts; the slow HDF5->GeoTIFF conversion
+                # above deliberately stays outside the lock
+                with write_lock():
+                    session.add_all(add_datasets)
+                    session.commit()
                 os.remove(os.path.join( h5_dir, h5_file ))
             else:
                 logger.debug ( "File %s already in database. Skip it" % h5_file )
