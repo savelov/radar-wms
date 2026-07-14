@@ -123,8 +123,11 @@ def update():
                                     "timestamp": timestamp })
     # finally add new datasets to DB
     if (len(add_datasets)>0):
-        session.add_all(add_datasets)
-        session.commit()
+        # single-writer discipline: serialize the commit with the other
+        # pipeline scripts; all the network fetching stays outside the lock
+        with write_lock():
+            session.add_all(add_datasets)
+            session.commit()
     logger.info ( "Added %i results." % len(add_datasets) )
     logger.debug( "Updating of DB finished" )
     session.close()
