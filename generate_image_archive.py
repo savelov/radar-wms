@@ -43,8 +43,23 @@ import datetime
 import os
 import sys
 
-sys.path.insert(0, os.environ.get("IMAGE_HOME", os.path.expanduser("~/image")))
-import pyimage                                              # noqa: E402
+# Where the viewer lives, and so pyimage and libimage.so with it.  $IMAGE_HOME
+# wins; otherwise try the usual checkout names.  Once pyimage is imported the
+# question is settled - IMAGE_HOME below is taken from the module that was
+# actually found, so there is one answer and not two to keep in step.
+for _candidate in filter(None, [os.environ.get("IMAGE_HOME"),
+                                os.path.expanduser("~/imagegcc"),
+                                os.path.expanduser("~/image")]):
+    if os.path.isfile(os.path.join(_candidate, "pyimage.py")):
+        sys.path.insert(0, _candidate)
+        break
+
+try:
+    import pyimage                                          # noqa: E402
+except ImportError:
+    sys.exit("cannot find pyimage.py - set IMAGE_HOME to the imagegcc checkout")
+
+IMAGE_HOME = os.path.dirname(os.path.abspath(pyimage.__file__))
 
 # Imported lazily: they pull in the database and the production config, which
 # a --dry-run has no business needing.  Checking that the projection and the
@@ -133,8 +148,8 @@ def store_product(frame, name, product, dry_run, tiff_dir):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--paths", default=os.path.join(
-        os.environ.get("IMAGE_HOME", os.path.expanduser("~/image")), "paths"))
+    ap.add_argument("--paths", default=os.path.join(IMAGE_HOME, "paths"),
+                    help="the viewer's path file (default: %(default)s)")
     ap.add_argument("--from", dest="start", help="YYYY-MM-DDTHH:MM (UTC)")
     ap.add_argument("--to", dest="end", help="YYYY-MM-DDTHH:MM (UTC)")
     ap.add_argument("--step", type=int, default=10, help="minutes between frames")
@@ -148,7 +163,8 @@ def main():
         end = (datetime.datetime.fromisoformat(args.end) if args.end
                else start + datetime.timedelta(minutes=args.step))
     else:
-        now = datetime.datetime.utcnow() - datetime.timedelta(minutes=args.step)
+        now = (datetime.datetime.now(datetime.timezone.utc)
+               .replace(tzinfo=None) - datetime.timedelta(minutes=args.step))
         start = now.replace(minute=now.minute - now.minute % args.step,
                             second=0, microsecond=0)
         end = start + datetime.timedelta(minutes=args.step)
