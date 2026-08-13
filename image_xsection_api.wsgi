@@ -27,4 +27,4 @@ sys.path.insert(0, os.path.dirname(__file__))
 #
 # os.environ.setdefault("IMAGE_HOME", "/home/eugene/image")
 
-from xsection_api import application  # noqa: E402,F401
+from image_xsection_api import application  # noqa: E402,F401

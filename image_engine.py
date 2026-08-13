@@ -72,11 +72,42 @@ class EngineError(Exception):
 
 
 def _find_image_home():
+    """The imagegcc checkout, or an error that says where it looked.
+
+    Naming the candidates matters more here than anywhere else in this file.
+    Under mod_wsgi the search runs as www-data, whose home is /var/www, so the
+    two ~ entries expand to directories nobody has ever seen - and an error
+    that only says "set IMAGE_HOME" leaves the reader guessing whether the
+    checkout is missing, unreadable, or simply somewhere else.
+    """
+    tried = []
     for candidate in filter(None, IMAGE_HOME_CANDIDATES):
-        if os.path.isfile(os.path.join(candidate, "pyimage.py")):
+        marker = os.path.join(candidate, "pyimage.py")
+        if os.path.isfile(marker):
             return os.path.abspath(candidate)
-    raise EngineError("cannot find pyimage.py - set IMAGE_HOME to the "
-                      "imagegcc checkout")
+        if not os.path.isdir(candidate):
+            tried.append("%s (no such directory)" % candidate)
+        elif not os.access(candidate, os.R_OK | os.X_OK):
+            tried.append("%s (not readable by %s)"
+                         % (candidate, _whoami()))
+        else:
+            tried.append("%s (no pyimage.py in it)" % candidate)
+
+    raise EngineError(
+        "cannot find the imagegcc checkout. Looked in: %s. Set IMAGE_HOME in "
+        "image_xsection_api.wsgi to the directory holding pyimage.py and "
+        "libimage.so - and check %s can read it."
+        % ("; ".join(tried) or "nowhere - IMAGE_HOME is unset and no default "
+           "applies", _whoami()))
+
+
+def _whoami():
+    """The user the worker runs as, for a message about permissions."""
+    try:
+        import pwd
+        return pwd.getpwuid(os.geteuid()).pw_name
+    except Exception:
+        return "this process"
 
 
 class Engine(object):
