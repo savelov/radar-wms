@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vertical cross section</title>
+
+<!--
+  Draw a line on the map, get the vertical slice under it.
+
+  The cut is made by the IMAGE C engine (crosssect.c), served by
+  radar-wms/xsection_api.py.  Everything shown here comes from that: the
+  values, their units, and the colours.  The colours especially - the API
+  hands out the map's own legend rows, and this page colours the section by
+  looking a value up in them, so a section and a map of one frame cannot
+  disagree about what a colour means.  An invented gradient, however pretty,
+  would put the two out of step the day someone edited a palette file.
+
+  The section is drawn on a canvas rather than through a plotting library.
+  The legend is seventeen to twenty-two discrete bands, which is a lookup and
+  a fillRect; wiring that into a library's continuous colour scale is more
+  code than doing it, and pulls in three megabytes to do it with.
+
+  OpenLayers is loaded from the site's vendor directory when it is there and
+  from the CDN when it is not, so this works both deployed and opened from a
+  checkout.
+-->
+
+<!-- The site vendors its libraries under vendor/<name>-<version>/ and caches
+     them forever; a checkout has no such directory.  Load the local copy,
+     then test for it: a 404 leaves `ol` undefined and the CDN is written in
+     before the rest of the page parses.  Testing the symbol rather than
+     hanging an onerror on the tag is what makes this reliable - a 404 that
+     the browser aborts does not always fire one. -->
+<link rel="stylesheet" href="vendor/ol-10.9.0/ol.css">
+<script src="vendor/ol-10.9.0/ol.js"></script>
+<script>
+if (typeof ol === 'undefined') {
+  document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.9.0/ol.css">');
+  document.write('<scr' + 'ipt src="https://cdn.jsdelivr.net/npm/ol@10.9.0/dist/ol.js"></scr' + 'ipt>');
+}
+</script>
+
+<style>
+:root {
+  --bg:#060a0f; --surface:#111922; --border:#1e2d3d;
+  --accent:#00c8ff; --accent2:#ff6b35;
+  --text:#cdd9e5; --muted:#6b7787; --danger:#ff4455;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --panel-w:300px; --hdr-h:42px;
+}
+* { box-sizing:border-box; }
+html,body { height:100%; margin:0; }
+body {
+  background:var(--bg); color:var(--text); font-family:var(--sans);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+
+header {
+  height:var(--hdr-h); flex:none; display:flex; align-items:center; gap:14px;
+  padding:0 14px; background:var(--surface); border-bottom:1px solid var(--border);
+}
+header h1 { font-size:.9rem; font-weight:500; margin:0; letter-spacing:.02em; }
+header .frame { font-family:var(--mono); font-size:.72rem; color:var(--accent); }
+header .status { margin-left:auto; display:flex; align-items:center; gap:7px;
+                 font-family:var(--mono); font-size:.68rem; color:var(--muted); }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--muted); }
+.dot.ok { background:#39ff87; } .dot.bad { background:var(--danger); }
+
+main { flex:1; display:flex; min-height:0; }
+
+aside {
+  width:var(--panel-w); flex:none; background:var(--surface);
+  border-right:1px solid var(--border); overflow-y:auto; padding:14px;
+}
+aside section { margin-bottom:18px; }
+aside h2 {
+  font-size:.62rem; text-transform:uppercase; letter-spacing:.13em;
+  color:var(--muted); margin:0 0 8px; font-weight:600;
+}
+.row { display:flex; gap:6px; flex-wrap:wrap; }
+button, select {
+  font-family:var(--mono); font-size:.72rem; color:var(--text);
+  background:#0b1219; border:1px solid var(--border); border-radius:4px;
+  padding:6px 9px; cursor:pointer;
+}
+button:hover:not(:disabled), select:hover { border-color:var(--accent); }
+button.on { background:var(--accent); color:#00131c; border-color:var(--accent);
+            font-weight:600; }
+button:disabled { opacity:.4; cursor:not-allowed; }
+select { width:100%; }
+.wide { width:100%; justify-content:center; }
+.info {
+  font-family:var(--mono); font-size:.68rem; line-height:1.7; color:var(--muted);
+  background:#0b1219; border:1px solid var(--border); border-radius:4px; padding:8px 10px;
+}
+.info b { color:var(--text); font-weight:500; }
+
+.right { flex:1; display:flex; flex-direction:column; min-width:0; }
+#map { flex:1; min-height:120px; background:#0b1219; position:relative; }
+#map .hint {
+  position:absolute; z-index:5; top:10px; left:50%; transform:translateX(-50%);
+  background:rgba(11,18,25,.92); border:1px solid var(--border); border-radius:4px;
+  padding:5px 11px; font-family:var(--mono); font-size:.68rem; color:var(--accent);
+  pointer-events:none;
+}
+.grab { height:6px; flex:none; background:var(--border); cursor:row-resize; }
+.grab:hover { background:var(--accent); }
+
+.panel {
+  height:300px; flex:none; background:var(--surface);
+  border-top:1px solid var(--border); display:flex; flex-direction:column;
+}
+.panel .bar {
+  flex:none; display:flex; align-items:center; gap:12px; padding:6px 12px;
+  border-bottom:1px solid var(--border); font-family:var(--mono); font-size:.68rem;
+}
+.panel .bar .t { color:var(--text); }
+.panel .bar .m { color:var(--muted); }
+.panel .bar .readout { margin-left:auto; color:var(--accent); }
+.plot { flex:1; display:flex; min-height:0; }
+#canvas-wrap { flex:1; position:relative; min-width:0; }
+#sect { position:absolute; inset:0; width:100%; height:100%; }
+#legend {
+  width:104px; flex:none; overflow-y:auto; padding:6px 8px;
+  border-left:1px solid var(--border); font-family:var(--mono); font-size:.6rem;
+}
+#legend .lrow { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+#legend .sw { width:13px; height:11px; border-radius:2px; flex:none;
+              border:1px solid rgba(255,255,255,.15); }
+#legend .lb { color:var(--muted); white-space:nowrap; }
+
+.veil {
+  position:fixed; inset:0; background:rgba(6,10,15,.72); z-index:50;
+  display:none; align-items:center; justify-content:center; flex-direction:column;
+  gap:12px; font-family:var(--mono); font-size:.76rem; color:var(--accent);
+}
+.veil.on { display:flex; }
+.spin { width:26px; height:26px; border:2px solid var(--border);
+        border-top-color:var(--accent); border-radius:50%; animation:sp .8s linear infinite; }
+@keyframes sp { to { transform:rotate(360deg); } }
+
+.toast {
+  position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(80px);
+  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent);
+  border-radius:4px; padding:9px 15px; font-family:var(--mono); font-size:.7rem;
+  z-index:60; transition:transform .25s; max-width:80vw;
+}
+.toast.on { transform:translateX(-50%) translateY(0); }
+.toast.bad { border-left-color:var(--danger); color:#ffc7cd; }
+
+@media (max-width:820px) {
+  aside { position:absolute; z-index:20; height:calc(100% - var(--hdr-h));
+          transform:translateX(-100%); transition:transform .2s; }
+  aside.open { transform:none; }
+  #burger { display:block; }
+}
+#burger { display:none; }
+</style>
+</head>
+<body>
+
+<header>
+  <button id="burger" onclick="document.querySelector('aside').classList.toggle('open')">☰</button>
+  <h1>Vertical cross section</h1>
+  <span class="frame" id="frame-time">—</span>
+  <span class="status"><span class="dot" id="dot"></span><span id="status">connecting…</span></span>
+</header>
+
+<main>
+  <aside>
+    <section>
+      <h2>Quantity</h2>
+      <div class="row" id="families"></div>
+    </section>
+
+    <section>
+      <h2>Time</h2>
+      <select id="time" onchange="onTime()"></select>
+    </section>
+
+    <section>
+      <h2>Line</h2>
+      <div class="row">
+        <button id="btn-draw" class="on" onclick="setMode('draw')">✎ Draw</button>
+        <button onclick="clearLine()">✕ Clear</button>
+      </div>
+      <div style="height:8px"></div>
+      <button class="wide" id="btn-cut" onclick="cut()" disabled>Cut section</button>
+    </section>
+
+    <section>
+      <h2>Endpoints</h2>
+      <div class="info" id="line-info">
+        <b>From</b> —<br><b>To</b> —<br><b>Length</b> —
+      </div>
+    </section>
+
+    <section>
+      <h2>Frame</h2>
+      <div class="info" id="frame-info">—</div>
+    </section>
+  </aside>
+
+  <div class="right">
+    <div id="map"><div class="hint" id="hint">Click to set the start point</div></div>
+    <div class="grab" id="grab"></div>
+    <div class="panel">
+      <div class="bar">
+        <span class="t" id="sect-title">—</span>
+        <span class="m" id="sect-meta"></span>
+        <span class="readout" id="readout"></span>
+      </div>
+      <div class="plot">
+        <div id="canvas-wrap"><canvas id="sect"></canvas></div>
+        <div id="legend"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="veil" id="veil"><div class="spin"></div><div id="veil-text">Cutting…</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// Same origin behind the Apache config that ships with this -
+// xsection_apache.conf mounts the API at /xsection.  ?api=... points it
+// elsewhere, which is how the page is opened against a development server:
+//     xsection.html?api=http://127.0.0.1:8052
+const QUERY = new URLSearchParams(location.search);
+const API = QUERY.get('api') || '/xsection';
+
+// A section is worth sending to someone.  ?line=lon1,lat1,lon2,lat2 with an
+// optional &family= and &time= reopens this one, and the page cuts it as soon
+// as it knows what the archive holds.
+const DEEP_LINK = (QUERY.get('line') || '').split(',').map(Number);
+
+let family   = QUERY.get('family') || 'dbz';
+let section  = null;       // the last cut, as the API sent it
+let bands    = [];         // legend rows parsed into numeric ranges
+let pts      = [];         // the drawn line, [lon,lat] pairs
+let mode     = 'draw';
+
+/* ── the map ─────────────────────────────────────────────────────────── */
+
+const lineSource  = new ol.source.Vector();
+const radarSource = new ol.source.Vector();
+
+const map = new ol.Map({
+  target: 'map',
+  layers: [
+    new ol.layer.Tile({ source: new ol.source.OSM() }),
+    new ol.layer.Vector({
+      source: radarSource,
+      style: f => new ol.style.Style({
+        image: new ol.style.Circle({
+          radius: 5,
+          fill:   new ol.style.Fill({ color: '#ff6b35' }),
+          stroke: new ol.style.Stroke({ color: '#060a0f', width: 1.5 })
+        }),
+        text: new ol.style.Text({
+          text: f.get('name'), offsetY: -13, font: '11px monospace',
+          fill: new ol.style.Fill({ color: '#ff6b35' }),
+          stroke: new ol.style.Stroke({ color: '#060a0f', width: 3 })
+        })
+      })
+    }),
+    new ol.layer.Vector({
+      source: lineSource,
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: '#00c8ff', width: 2.5 }),
+        image:  new ol.style.Circle({
+          radius: 4, fill: new ol.style.Fill({ color: '#00c8ff' })
+        })
+      })
+    })
+  ],
+  view: new ol.View({ center: ol.proj.fromLonLat([66, 56.7]), zoom: 6 })
+});
+
+map.on('click', e => {
+  if (mode !== 'draw') return;
+  const ll = ol.proj.toLonLat(e.coordinate);
+  if (pts.length >= 2) pts = [];
+  pts.push([+ll[0].toFixed(4), +ll[1].toFixed(4)]);
+  drawLine();
+  if (pts.length === 2) cut();
+});
+
+function drawLine() {
+  lineSource.clear();
+  pts.forEach(p => lineSource.addFeature(new ol.Feature({
+    geometry: new ol.geom.Point(ol.proj.fromLonLat(p))
+  })));
+  if (pts.length === 2) {
+    lineSource.addFeature(new ol.Feature({
+      geometry: new ol.geom.LineString(pts.map(p => ol.proj.fromLonLat(p)))
+    }));
+  }
+  document.getElementById('btn-cut').disabled = pts.length !== 2;
+  document.getElementById('hint').textContent =
+    pts.length === 0 ? 'Click to set the start point'
+    : pts.length === 1 ? 'Click again for the end point'
+    : 'Click once more to start a new line';
+
+  const f = pts[0], t = pts[1];
+  document.getElementById('line-info').innerHTML =
+    '<b>From</b> ' + (f ? f[0].toFixed(3) + ', ' + f[1].toFixed(3) : '—') + '<br>' +
+    '<b>To</b> '   + (t ? t[0].toFixed(3) + ', ' + t[1].toFixed(3) : '—') + '<br>' +
+    '<b>Length</b> ' + (f && t ? haversine(f, t).toFixed(0) + ' km' : '—');
+}
+
+function haversine(a, b) {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * rad, dLon = (b[0] - a[0]) * rad;
+  const s = Math.sin(dLat / 2) ** 2 +
+            Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-draw').classList.toggle('on', m === 'draw');
+}
+function clearLine() { pts = []; drawLine(); }
+
+/* ── the legend, and colouring a value with it ───────────────────────── */
+
+/* Labels come from the palette files: ">70", "65..70", "<=-50", and the two
+   non-numeric rows at the end - "no echo" and "no data" - which are not
+   bands and are dropped.  Parsed into [lo,hi) so a value can be looked up. */
+function parseBands(rows) {
+  const out = [];
+  for (const r of rows) {
+    const s = r.label.trim();
+    let lo = null, hi = null, m;
+    if ((m = s.match(/^>=?\s*(-?[\d.]+)$/)))       { lo = +m[1]; hi = Infinity; }
+    else if ((m = s.match(/^<=?\s*(-?[\d.]+)$/)))  { lo = -Infinity; hi = +m[1]; }
+    else if ((m = s.match(/^(-?[\d.]+)\.\.(-?[\d.]+)$/))) { lo = +m[1]; hi = +m[2]; }
+    else continue;                       // "нет эхо" / "нет инф"
+    out.push({ lo: Math.min(lo, hi), hi: Math.max(lo, hi),
+               color: r.color, label: s });
+  }
+  return out;
+}
+
+function colorOf(v) {
+  for (const b of bands) if (v >= b.lo && v < b.hi) return b.color;
+  // above the top band or below the bottom one: clamp to the end it fell off
+  if (bands.length) {
+    const top = bands.reduce((a, b) => b.hi > a.hi ? b : a);
+    const bot = bands.reduce((a, b) => b.lo < a.lo ? b : a);
+    if (v >= top.hi) return top.color;
+    if (v < bot.lo)  return bot.color;
+  }
+  return '#888';
+}
+
+function renderLegend(rows) {
+  document.getElementById('legend').innerHTML = rows.map(r =>
+    '<div class="lrow"><span class="sw" style="background:' + r.color +
+    '"></span><span class="lb">' + escapeHtml(r.label) + '</span></div>'
+  ).join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+}
+
+/* ── drawing the section ─────────────────────────────────────────────── */
+
+const PAD = { l: 46, r: 8, t: 8, b: 26 };
+
+function drawSection() {
+  const wrap = document.getElementById('canvas-wrap');
+  const cv   = document.getElementById('sect');
+  const dpr  = window.devicePixelRatio || 1;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+
+  if (!section) return;
+  const plotW = W - PAD.l - PAD.r, plotH = H - PAD.t - PAD.b;
+  if (plotW <= 0 || plotH <= 0) return;
+
+  const cols = section.width, rowsN = section.height;
+  const cw = plotW / cols, ch = plotH / rowsN;
+
+  // values[0] is the BOTTOM row - the API turns the engine's picture-order
+  // rows over so the y axis ascends - so row r is drawn ch above the floor.
+  //
+  // The cell edges are snapped to whole pixels rather than drawn at their
+  // fractional positions.  A fractional fillRect is antialiased against what
+  // is under it, which turns a palette of seventeen colours into a gradient
+  // of two thousand - and the colours matching the map exactly is the point
+  // of taking them from the engine in the first place.  Snapping the far edge
+  // to the next cell's near edge is what leaves no seam between them.
+  for (let r = 0; r < rowsN; r++) {
+    const row = section.values[r];
+    const yTop = Math.round(PAD.t + plotH - (r + 1) * ch);
+    const yBot = Math.round(PAD.t + plotH - r * ch);
+    for (let c = 0; c < cols; c++) {
+      const v = row[c];
+      if (v === null) continue;
+      const xL = Math.round(PAD.l + c * cw);
+      const xR = Math.round(PAD.l + (c + 1) * cw);
+      g.fillStyle = colorOf(v);
+      g.fillRect(xL, yTop, Math.max(1, xR - xL), Math.max(1, yBot - yTop));
+    }
+  }
+
+  // the beam floor: under it nothing looked, which is not the same as
+  // nothing being there, so it is hatched rather than left blank
+  g.save();
+  g.beginPath();
+  g.moveTo(PAD.l, PAD.t + plotH);
+  for (let c = 0; c < cols; c++) {
+    const km = section.floor_km[c];
+    g.lineTo(PAD.l + c * cw, PAD.t + plotH - (km / section.top_km) * plotH);
+  }
+  g.lineTo(PAD.l + plotW, PAD.t + plotH);
+  g.closePath();
+  g.fillStyle = 'rgba(120,135,155,.13)';
+  g.fill();
+  g.strokeStyle = 'rgba(120,135,155,.4)';
+  g.setLineDash([3, 3]);
+  g.stroke();
+  g.restore();
+
+  // axes
+  g.strokeStyle = '#1e2d3d';
+  g.fillStyle   = '#6b7787';
+  g.font        = '10px ui-monospace,monospace';
+  g.lineWidth   = 1;
+  g.beginPath();
+  g.moveTo(PAD.l, PAD.t); g.lineTo(PAD.l, PAD.t + plotH);
+  g.lineTo(PAD.l + plotW, PAD.t + plotH);
+  g.stroke();
+
+  const topKm = section.top_km;
+  for (let km = 0; km <= topKm + .001; km += topKm > 8 ? 2 : 1) {
+    const y = PAD.t + plotH - (km / topKm) * plotH;
+    g.strokeStyle = 'rgba(30,45,61,.7)';
+    g.beginPath(); g.moveTo(PAD.l, y); g.lineTo(PAD.l + plotW, y); g.stroke();
+    g.textAlign = 'right'; g.textBaseline = 'middle';
+    g.fillText(km + ' km', PAD.l - 5, y);
+  }
+  const L = section.length_km;
+  const stepKm = niceStep(L);
+  for (let d = 0; d <= L + .001; d += stepKm) {
+    const x = PAD.l + (d / L) * plotW;
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    g.fillText(d.toFixed(0), x, PAD.t + plotH + 6);
+  }
+  g.textAlign = 'right';
+  g.fillText('km along', PAD.l + plotW, PAD.t + plotH + 15);
+}
+
+function niceStep(span) {
+  const raw = span / 6;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  return [1, 2, 5, 10].map(m => m * pow).find(s => s >= raw) || pow * 10;
+}
+
+/* hover: report the value under the cursor, in the engine's units */
+document.getElementById('sect').addEventListener('mousemove', e => {
+  const out = document.getElementById('readout');
+  if (!section) { out.textContent = ''; return; }
+  const wrap = document.getElementById('canvas-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  const plotW = W - PAD.l - PAD.r, plotH = H - PAD.t - PAD.b;
+  const x = e.offsetX - PAD.l, y = e.offsetY - PAD.t;
+  if (x < 0 || y < 0 || x > plotW || y > plotH) { out.textContent = ''; return; }
+
+  const c = Math.min(section.width  - 1, Math.floor(x / plotW * section.width));
+  const r = Math.min(section.height - 1,
+                     Math.floor((plotH - y) / plotH * section.height));
+  const v  = section.values[r][c];
+  const km = (r / (section.height - 1)) * section.top_km;
+  const d  = (c / (section.width  - 1)) * section.length_km;
+  out.textContent = d.toFixed(0) + ' km, ' + km.toFixed(2) + ' km up  ·  ' +
+                    (v === null ? 'no data' : v.toFixed(2) + ' ' + section.units);
+});
+document.getElementById('sect').addEventListener('mouseleave',
+  () => document.getElementById('readout').textContent = '');
+
+/* ── talking to the API ──────────────────────────────────────────────── */
+
+async function api(path) {
+  const res  = await fetch(API + path);
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+  return data;
+}
+
+async function boot() {
+  try {
+    const h = await api('/health');
+    setStatus(h.ok, h.ok ? h.frames + ' frames' : (h.error || 'no archive'));
+
+    const info = await api('/info');
+    showFrame(info);
+    renderFamilies(info.families, info.levels);
+
+    const fr = await api('/frames?limit=200');
+    const sel = document.getElementById('time');
+    sel.innerHTML = fr.timestamps.map((t, i) =>
+      '<option value="' + t + '">' + t.replace('T', ' ').replace('Z', '') +
+      (i === 0 ? '  (latest)' : '') + '</option>').join('');
+
+    const wanted = QUERY.get('time');
+    if (wanted && fr.timestamps.includes(wanted)) sel.value = wanted;
+
+    if (DEEP_LINK.length === 4 && DEEP_LINK.every(Number.isFinite)) {
+      pts = [[DEEP_LINK[0], DEEP_LINK[1]], [DEEP_LINK[2], DEEP_LINK[3]]];
+      drawLine();
+      map.getView().fit(
+        new ol.geom.LineString(pts.map(p => ol.proj.fromLonLat(p))).getExtent(),
+        { padding: [60, 60, 60, 60], maxZoom: 9 });
+      cut();
+    }
+  } catch (e) {
+    setStatus(false, e.message);
+    toast(e.message, true);
+  }
+}
+
+function showFrame(info) {
+  document.getElementById('frame-time').textContent = info.frame_time;
+  document.getElementById('frame-info').innerHTML =
+    '<b>Grid</b> ' + info.size + '² @ ' + (info.pixel_m / 1000) + ' km<br>' +
+    '<b>Radars</b> ' + info.radars.length + '<br>' +
+    Object.entries(info.levels).map(([k, v]) =>
+      '<b>' + k + '</b> ' + v + ' levels').join('<br>');
+
+  radarSource.clear();
+  info.radars.forEach(r => {
+    const f = new ol.Feature({
+      geometry: new ol.geom.Point(ol.proj.fromLonLat([r.lon, r.lat]))
+    });
+    f.set('name', (r.name || '').trim());
+    radarSource.addFeature(f);
+  });
+}
+
+function renderFamilies(list, levels) {
+  const names = { dbz: 'Reflectivity', zdr: 'ZDR', vel: 'Velocity' };
+  document.getElementById('families').innerHTML = list.map(f =>
+    '<button class="' + (f === family ? 'on' : '') + '" data-f="' + f +
+    '" onclick="pickFamily(\'' + f + '\')" title="' + levels[f] +
+    ' levels">' + (names[f] || f) + '</button>').join('');
+  if (!list.includes(family) && list.length) family = list[0];
+}
+
+function pickFamily(f) {
+  family = f;
+  document.querySelectorAll('#families button').forEach(b =>
+    b.classList.toggle('on', b.dataset.f === f));
+  if (pts.length === 2) cut();
+}
+
+function onTime() {
+  api('/info?time=' + encodeURIComponent(document.getElementById('time').value))
+    .then(showFrame).catch(e => toast(e.message, true));
+  if (pts.length === 2) cut();
+}
+
+async function cut() {
+  if (pts.length !== 2) return;
+  veil(true, 'Cutting the section…');
+  try {
+    const q = new URLSearchParams({
+      lon1: pts[0][0], lat1: pts[0][1],
+      lon2: pts[1][0], lat2: pts[1][1],
+      family: family,
+      time: document.getElementById('time').value || 'latest'
+    });
+    section = await api('/xsection?' + q);
+    bands = parseBands(section.legend);
+    renderLegend(section.legend);
+
+    document.getElementById('sect-title').textContent =
+      section.title + '  (' + section.units + ')';
+    document.getElementById('sect-meta').textContent =
+      section.frame_time + '  ·  ' + section.length_km + ' km  ·  ' +
+      section.levels + ' levels  ·  ' +
+      section.base_km + '–' + section.top_km + ' km';
+    document.getElementById('frame-time').textContent = section.frame_time;
+    drawSection();
+
+    // keep the address bar on the section being shown, so the link in it is
+    // always the one worth sending.  replaceState, not pushState: redrawing
+    // after a family change is not a page to go Back to.
+    const share = new URLSearchParams(location.search);
+    share.set('line', [pts[0][0], pts[0][1], pts[1][0], pts[1][1]].join(','));
+    share.set('family', family);
+    share.set('time', document.getElementById('time').value || 'latest');
+    history.replaceState(null, '', location.pathname + '?' + share);
+  } catch (e) {
+    section = null;
+    drawSection();
+    document.getElementById('sect-title').textContent = '—';
+    document.getElementById('sect-meta').textContent = '';
+    toast(e.message, true);
+  } finally {
+    veil(false);
+  }
+}
+
+/* ── chrome ──────────────────────────────────────────────────────────── */
+
+function setStatus(ok, msg) {
+  document.getElementById('dot').className = 'dot ' + (ok ? 'ok' : 'bad');
+  document.getElementById('status').textContent = msg;
+}
+function veil(on, text) {
+  document.getElementById('veil').classList.toggle('on', on);
+  if (text) document.getElementById('veil-text').textContent = text;
+}
+let toastTimer;
+function toast(msg, bad) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast on' + (bad ? ' bad' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = 'toast', 5000);
+}
+
+/* drag the divider between the map and the section */
+(function () {
+  const grab = document.getElementById('grab');
+  const panel = document.querySelector('.panel');
+  let startY = 0, startH = 0;
+  grab.addEventListener('mousedown', e => {
+    startY = e.clientY; startH = panel.offsetHeight;
+    const move = ev => {
+      panel.style.height =
+        Math.max(120, Math.min(window.innerHeight - 200,
+                               startH + (startY - ev.clientY))) + 'px';
+      map.updateSize(); drawSection();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    e.preventDefault();
+  });
+})();
+
+window.addEventListener('resize', () => { map.updateSize(); drawSection(); });
+
+drawLine();
+boot();
+</script>
+</body>
+</html>
