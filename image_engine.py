@@ -243,9 +243,14 @@ class Engine(object):
             frame = self._frame_for(when)
             self._load(frame, product)
             info = dict(frame.info)
+            # `families` is what can be cut - two levels or more.  `levels`
+            # counts every family, including the ones that cannot, so a caller
+            # can say "velocity: no levels in this frame" instead of quietly
+            # dropping the button.  The newest frame is often part written:
+            # the pipeline lands dbz before vel, and a family that is missing
+            # for one cycle and back the next reads as a bug when it is not.
             info["families"] = frame.families()
-            info["levels"] = {fam: frame.levels(fam)
-                              for fam in info["families"]}
+            info["levels"] = {fam: frame.levels(fam) for fam in FAMILY_PRODUCT}
             info["frame_time"] = frame.timestamp
             return info
 

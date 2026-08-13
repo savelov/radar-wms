@@ -103,6 +103,9 @@ select { width:100%; }
 .slider input { flex:1; accent-color:var(--accent); }
 .slider span { font-family:var(--mono); font-size:.64rem; color:var(--accent);
                min-width:34px; text-align:right; }
+.warn { font-family:var(--mono); font-size:.6rem; line-height:1.5;
+        color:var(--accent2); margin-top:6px; }
+button.off { opacity:.35; cursor:not-allowed; }
 
 .right { flex:1; display:flex; flex-direction:column; min-width:0; }
 #map { flex:1; min-height:120px; background:#0b1219; position:relative; }
@@ -198,6 +201,7 @@ select { width:100%; }
                oninput="onWmsOpacity(this.value)">
         <span id="wms-opacity-val">65%</span>
       </div>
+      <div class="warn" id="wms-note"></div>
     </section>
 
     <section>
@@ -265,6 +269,7 @@ const TOKEN_URL = QUERY.get('token') || '/get_token';
 // it here would bake one deployment's timezone into a file served to browsers.
 let frames = [];        // [{archive, utc}], newest first
 let wmsToken = null;
+let wmsLayers = new Map();   // layer name -> Set of UTC times it can draw
 
 // A section is worth sending to someone.  ?line=lon1,lat1,lon2,lat2 with an
 // optional &family= and &time= reopens this one, and the page cuts it as soon
@@ -582,17 +587,35 @@ async function loadWmsLayers() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const xml = new DOMParser().parseFromString(await res.text(), 'text/xml');
 
-    // Named layers only - the unnamed root Layer is the container, not a map
-    const names = [...xml.querySelectorAll('Layer > Name')]
-      .map(n => n.textContent.trim()).filter(Boolean);
-    if (!names.length) throw new Error('no named layers');
+    // Leaf layers only.  A Layer holding other Layers is the container - the
+    // root one is named too ("baltrad_wms" here) and is not a map to draw.
+    for (const el of xml.querySelectorAll('Layer')) {
+      if (el.querySelector('Layer')) continue;
+      const name = el.querySelector(':scope > Name');
+      if (!name) continue;
+
+      // What times this layer can actually draw.  It matters more here than
+      // it looks: the WMS keeps a rolling window - fifteen frames, about two
+      // and a half hours - while the archive this page cuts from goes back
+      // months.  Most frames in the picker have no radar image at all, and
+      // asking for one returns a blank PNG with a 200 next to it.
+      // 1.1.1 puts the values in <Extent>, 1.3.0 in <Dimension>.
+      const dim = el.querySelector(':scope > Extent[name="time"]') ||
+                  el.querySelector(':scope > Dimension[name="time"]');
+      const times = new Set((dim ? dim.textContent : '')
+        .split(',').map(s => s.trim()).filter(Boolean));
+
+      wmsLayers.set(name.textContent.trim(), times);
+    }
+    if (!wmsLayers.size) throw new Error('no named layers');
 
     sel.innerHTML = '<option value="">— none —</option>' +
-      names.map(n => '<option value="' + n + '">' + escapeHtml(n) +
-                     '</option>').join('');
+      [...wmsLayers.keys()].map(n =>
+        '<option value="' + n + '">' + escapeHtml(n) + '</option>').join('');
 
     const wanted = QUERY.get('layer');
-    sel.value = wanted && names.includes(wanted) ? wanted : '';
+    sel.value = wanted && wmsLayers.has(wanted) ? wanted : '';
+    markFramesWithImagery();
     if (sel.value) onWmsLayer();
   } catch (e) {
     sel.innerHTML = '<option value="">— unavailable —</option>';
@@ -600,9 +623,25 @@ async function loadWmsLayers() {
   }
 }
 
+/* Put a dot on the frames the chosen layer can actually draw.  With fifteen
+   of two hundred, knowing which before clicking is the difference between a
+   picker and a guessing game. */
+function markFramesWithImagery() {
+  const times = wmsLayers.get(document.getElementById('wms-layer').value);
+  const sel = document.getElementById('time');
+  for (const opt of sel.options) {
+    const frame = frames.find(f => f.archive === opt.value);
+    const has = frame && times && times.has(frame.utc);
+    opt.textContent = (has ? '● ' : '  ') +
+      opt.value.replace('T', ' ') +
+      (opt === sel.options[0] ? '  (latest)' : '');
+  }
+}
+
 function onWmsLayer() {
   const layer = document.getElementById('wms-layer').value;
   if (layer) wmsSource.updateParams({ LAYERS: layer });
+  markFramesWithImagery();
   syncWmsTime();
 }
 
@@ -616,6 +655,8 @@ function onWmsOpacity(v) {
 function syncWmsTime() {
   const frame = selectedFrame();
   const layer = document.getElementById('wms-layer').value;
+  const times = wmsLayers.get(layer);
+  const note  = document.getElementById('wms-note');
 
   document.getElementById('time-utc').innerHTML =
     frame ? 'UTC <b>' + frame.utc + '</b>' : '&mdash;';
@@ -624,12 +665,29 @@ function syncWmsTime() {
   // arrived sends a GetMap with no TIME, which a WMS answers with whatever is
   // latest - a different moment from the section, on screen for as long as it
   // takes the frames to load.
-  if (layer && frame) {
-    wmsSource.updateParams({ TIME: frame.utc });
-    wmsLayer.setVisible(true);
-  } else {
+  if (!layer || !frame) {
     wmsLayer.setVisible(false);
+    note.textContent = '';
+    return;
   }
+
+  // The WMS keeps a short rolling window and the archive does not, so most
+  // frames have no image.  Asking anyway returns a fully transparent PNG with
+  // a 200 beside it - nothing in the network tab looks wrong and the map just
+  // stays empty.  Say it instead, and leave the overlay off: an overlay that
+  // is silently blank is worse than one that is honestly absent.
+  if (times && times.size && !times.has(frame.utc)) {
+    wmsLayer.setVisible(false);
+    const all = [...times].sort();
+    note.textContent = 'no radar image at this time — the WMS holds ' +
+      times.size + ' frames, ' + all[0].replace('T', ' ').replace('Z', '') +
+      ' to ' + all[all.length - 1].replace('T', ' ').replace('Z', '') + ' UTC';
+    return;
+  }
+
+  note.textContent = '';
+  wmsSource.updateParams({ TIME: frame.utc });
+  wmsLayer.setVisible(true);
 }
 
 function selectedFrame() {
@@ -679,6 +737,7 @@ async function boot() {
 
     const wanted = QUERY.get('time');
     if (wanted && frames.some(f => f.archive === wanted)) sel.value = wanted;
+    markFramesWithImagery();   // the caps may have landed before the frames
     syncWmsTime();
 
     if (DEEP_LINK.length === 4 && DEEP_LINK.every(Number.isFinite)) {
@@ -722,12 +781,25 @@ function showFrame(info) {
   });
 }
 
+/* Every family is shown, including the ones this frame cannot be cut through.
+   A section needs two levels of a family, and the newest frame is often part
+   written - the pipeline lands reflectivity before velocity - so a button
+   that vanishes for one cycle and returns the next reads as a bug.  Disabled
+   and labelled with the reason reads as what it is. */
 function renderFamilies(list, levels) {
   const names = { dbz: 'Reflectivity', zdr: 'ZDR', vel: 'Velocity' };
-  document.getElementById('families').innerHTML = list.map(f =>
-    '<button class="' + (f === family ? 'on' : '') + '" data-f="' + f +
-    '" onclick="pickFamily(\'' + f + '\')" title="' + levels[f] +
-    ' levels">' + (names[f] || f) + '</button>').join('');
+  const all = Object.keys(levels || {}).length ? Object.keys(levels)
+                                              : list;
+  document.getElementById('families').innerHTML = all.map(f => {
+    const ok = list.includes(f);
+    const n  = (levels || {})[f] || 0;
+    return '<button class="' + (ok ? (f === family ? 'on' : '') : 'off') +
+      '" data-f="' + f + '"' + (ok ? '' : ' disabled') +
+      ' onclick="pickFamily(\'' + f + '\')" title="' +
+      (ok ? n + ' levels in this frame'
+          : n + ' level(s) in this frame — a section needs two') + '">' +
+      (names[f] || f) + '</button>';
+  }).join('');
   if (!list.includes(family) && list.length) family = list[0];
 }
 
