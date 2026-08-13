@@ -291,7 +291,12 @@ const wmsSource = new ol.source.ImageWMS({
   url: WMS,
   params: { LAYERS: '' },
   ratio: 1,
-  serverType: 'mapserver',
+  // 'geoserver', the same value demo.js uses against this same endpoint.  The
+  // backend is MapServer, so 'mapserver' is the more truthful label and only
+  // changes what OpenLayers appends on a hidpi display - MAP_RESOLUTION
+  // instead of FORMAT_OPTIONS=dpi.  Matching the page that is known to work
+  // against this deployment is worth more than being right about that.
+  serverType: 'geoserver',
   imageLoadFunction: (image, src) => {
     image.getImage().src = wmsToken
       ? src + (src.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(wmsToken)
@@ -657,6 +662,15 @@ async function boot() {
     renderFamilies(info.families, info.levels);
 
     const fr = await api('/frames?limit=200');
+    // This page and image_xsection_api.py are deployed as two files and can
+    // drift apart.  /frames used to answer a flat `timestamps` list and now
+    // answers `frames` of {archive, utc} pairs, so say which half is behind
+    // rather than failing later on a property that is not there.
+    if (!Array.isArray(fr.frames)) {
+      throw new Error('the API is older than this page: /frames returned ' +
+        (fr.timestamps ? 'a flat timestamps list' : 'no frame list') +
+        '. Deploy image_xsection_api.py and image_xsection.html together.');
+    }
     frames = fr.frames;
     const sel = document.getElementById('time');
     sel.innerHTML = frames.map((f, i) =>
