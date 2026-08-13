@@ -17,9 +17,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Where the imagegcc checkout is, if it is not ~/image or ~/imagegcc.  Set it
-# here rather than in the Apache config so that the development server and the
-# deployed one read the same file.
-# os.environ.setdefault("IMAGE_HOME", "/opt/radar/image")
+# Where the imagegcc checkout is.  image_engine.py already tries ~/image,
+# ~/imagegcc and /opt/radar/image, which covers the development machine and a
+# tidy deployment; set this when it is somewhere else.
+#
+# It goes here and not in the Apache config because mod_wsgi's SetEnv fills
+# the WSGI environ, which is not os.environ, and the engine reads os.environ.
+# Here it also means the development server and the deployed one read one file.
+#
+# os.environ.setdefault("IMAGE_HOME", "/home/eugene/image")
 
 from xsection_api import application  # noqa: E402,F401

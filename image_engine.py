@@ -56,9 +56,15 @@ FAMILY_PRODUCT = {"dbz": "dbz1", "zdr": "zdr1", "vel": "vel1"}
 #: how the engine is found.  $IMAGE_HOME wins, then the usual checkout names -
 #: the same order generate_image_archive.py uses, so both agree on which
 #: checkout is in play when there is more than one.
+#:
+#: /opt/radar/image is on the end for the deployed case.  Under mod_wsgi this
+#: runs as www-data, whose home is /var/www, so the two ~ entries resolve to
+#: directories that do not exist and never will; without a third candidate
+#: every deployment would have to set IMAGE_HOME by hand.
 IMAGE_HOME_CANDIDATES = [os.environ.get("IMAGE_HOME"),
                          os.path.expanduser("~/image"),
-                         os.path.expanduser("~/imagegcc")]
+                         os.path.expanduser("~/imagegcc"),
+                         "/opt/radar/image"]
 
 
 class EngineError(Exception):
