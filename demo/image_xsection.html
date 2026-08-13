@@ -63,6 +63,7 @@ header {
 }
 header h1 { font-size:.9rem; font-weight:500; margin:0; letter-spacing:.02em; }
 header .frame { font-family:var(--mono); font-size:.72rem; color:var(--accent); }
+header .frame .z { color:var(--muted); font-size:.62rem; }
 header .status { margin-left:auto; display:flex; align-items:center; gap:7px;
                  font-family:var(--mono); font-size:.68rem; color:var(--muted); }
 .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); }
@@ -96,6 +97,12 @@ select { width:100%; }
   background:#0b1219; border:1px solid var(--border); border-radius:4px; padding:8px 10px;
 }
 .info b { color:var(--text); font-weight:500; }
+.utc { font-family:var(--mono); font-size:.62rem; color:var(--muted); margin-top:5px; }
+.utc b { color:var(--accent2); font-weight:500; }
+.slider { display:flex; align-items:center; gap:8px; margin-top:7px; }
+.slider input { flex:1; accent-color:var(--accent); }
+.slider span { font-family:var(--mono); font-size:.64rem; color:var(--accent);
+               min-width:34px; text-align:right; }
 
 .right { flex:1; display:flex; flex-direction:column; min-width:0; }
 #map { flex:1; min-height:120px; background:#0b1219; position:relative; }
@@ -178,6 +185,19 @@ select { width:100%; }
     <section>
       <h2>Time</h2>
       <select id="time" onchange="onTime()"></select>
+      <div class="utc" id="time-utc">&mdash;</div>
+    </section>
+
+    <section>
+      <h2>Radar overlay</h2>
+      <select id="wms-layer" onchange="onWmsLayer()">
+        <option value="">— none —</option>
+      </select>
+      <div class="slider">
+        <input type="range" min="0" max="100" value="65" id="wms-opacity"
+               oninput="onWmsOpacity(this.value)">
+        <span id="wms-opacity-val">65%</span>
+      </div>
     </section>
 
     <section>
@@ -231,6 +251,21 @@ select { width:100%; }
 const QUERY = new URLSearchParams(location.search);
 const API = QUERY.get('api') || '/xsection';
 
+// The radar overlay comes from the WMS, not from this API.  Its mount differs
+// between deployments (/baltrad_wsgi here, /wms elsewhere) and so do its layer
+// names - cappi_* on one site, bufr_* on another - so both are settable and
+// the layer list is read from GetCapabilities rather than assumed.
+const WMS       = QUERY.get('wms')   || '/baltrad_wsgi';
+const TOKEN_URL = QUERY.get('token') || '/get_token';
+
+// TWO CLOCKS.  The .wrk archive carries Moscow time and the WMS carries UTC,
+// three hours apart.  The API reports both for every frame, `archive` and
+// `utc`, and the rule here is: `archive` goes back to the API as ?time=, `utc`
+// goes to the WMS as TIME.  Nothing on this page does the arithmetic - doing
+// it here would bake one deployment's timezone into a file served to browsers.
+let frames = [];        // [{archive, utc}], newest first
+let wmsToken = null;
+
 // A section is worth sending to someone.  ?line=lon1,lat1,lon2,lat2 with an
 // optional &family= and &time= reopens this one, and the page cuts it as soon
 // as it knows what the archive holds.
@@ -247,10 +282,30 @@ let mode     = 'draw';
 const lineSource  = new ol.source.Vector();
 const radarSource = new ol.source.Vector();
 
+// The radar overlay.  ImageWMS, one request per view, the way demo.js asks for
+// it - and like demo.js it appends the token at load time rather than putting
+// it in `params`: the token is refreshed every thirty seconds and a stale one
+// baked into the source's parameters would only be noticed as a 403 sometime
+// later.  Building the URL here means every request carries the current one.
+const wmsSource = new ol.source.ImageWMS({
+  url: WMS,
+  params: { LAYERS: '' },
+  ratio: 1,
+  serverType: 'mapserver',
+  imageLoadFunction: (image, src) => {
+    image.getImage().src = wmsToken
+      ? src + (src.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(wmsToken)
+      : src;
+  }
+});
+const wmsLayer = new ol.layer.Image({ source: wmsSource, opacity: 0.65,
+                                      visible: false });
+
 const map = new ol.Map({
   target: 'map',
   layers: [
     new ol.layer.Tile({ source: new ol.source.OSM() }),
+    wmsLayer,
     new ol.layer.Vector({
       source: radarSource,
       style: f => new ol.style.Style({
@@ -488,6 +543,95 @@ document.getElementById('sect').addEventListener('mousemove', e => {
 document.getElementById('sect').addEventListener('mouseleave',
   () => document.getElementById('readout').textContent = '');
 
+/* ── the radar overlay ───────────────────────────────────────────────── */
+
+/* The WMS is token guarded: /get_token signs a short lived one, sixty seconds
+   on this deployment, so it is refreshed on a timer well inside that.  A site
+   with no token endpoint answers 404 and the overlay simply goes unguarded -
+   which is what an older deployment looks like, not an error. */
+async function refreshToken() {
+  try {
+    const res = await fetch(TOKEN_URL);
+    if (!res.ok) return false;
+    wmsToken = (await res.json()).token;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function wmsUrl(params) {
+  const q = new URLSearchParams(params);
+  if (wmsToken) q.set('token', wmsToken);
+  return WMS + (WMS.includes('?') ? '&' : '?') + q;
+}
+
+/* The layer names differ between deployments, so they are read rather than
+   assumed.  A failure here costs the overlay and nothing else: the section is
+   this page's job and does not go through the WMS at all. */
+async function loadWmsLayers() {
+  const sel = document.getElementById('wms-layer');
+  try {
+    const res = await fetch(wmsUrl({ SERVICE: 'WMS', VERSION: '1.1.1',
+                                     REQUEST: 'GetCapabilities' }));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const xml = new DOMParser().parseFromString(await res.text(), 'text/xml');
+
+    // Named layers only - the unnamed root Layer is the container, not a map
+    const names = [...xml.querySelectorAll('Layer > Name')]
+      .map(n => n.textContent.trim()).filter(Boolean);
+    if (!names.length) throw new Error('no named layers');
+
+    sel.innerHTML = '<option value="">— none —</option>' +
+      names.map(n => '<option value="' + n + '">' + escapeHtml(n) +
+                     '</option>').join('');
+
+    const wanted = QUERY.get('layer');
+    sel.value = wanted && names.includes(wanted) ? wanted : '';
+    if (sel.value) onWmsLayer();
+  } catch (e) {
+    sel.innerHTML = '<option value="">— unavailable —</option>';
+    console.warn('radar overlay unavailable:', e.message);
+  }
+}
+
+function onWmsLayer() {
+  const layer = document.getElementById('wms-layer').value;
+  if (layer) wmsSource.updateParams({ LAYERS: layer });
+  syncWmsTime();
+}
+
+function onWmsOpacity(v) {
+  wmsLayer.setOpacity(v / 100);
+  document.getElementById('wms-opacity-val').textContent = v + '%';
+}
+
+/* The one place the two clocks meet.  The picker holds archive times; the WMS
+   is told the `utc` the API paired with the selected one.  No arithmetic. */
+function syncWmsTime() {
+  const frame = selectedFrame();
+  const layer = document.getElementById('wms-layer').value;
+
+  document.getElementById('time-utc').innerHTML =
+    frame ? 'UTC <b>' + frame.utc + '</b>' : '&mdash;';
+
+  // Both halves or neither.  Showing the layer before the frame list has
+  // arrived sends a GetMap with no TIME, which a WMS answers with whatever is
+  // latest - a different moment from the section, on screen for as long as it
+  // takes the frames to load.
+  if (layer && frame) {
+    wmsSource.updateParams({ TIME: frame.utc });
+    wmsLayer.setVisible(true);
+  } else {
+    wmsLayer.setVisible(false);
+  }
+}
+
+function selectedFrame() {
+  const v = document.getElementById('time').value;
+  return frames.find(f => f.archive === v) || frames[0] || null;
+}
+
 /* ── talking to the API ──────────────────────────────────────────────── */
 
 async function api(path) {
@@ -498,6 +642,12 @@ async function api(path) {
 }
 
 async function boot() {
+  // The overlay is set up first and separately, so that an unreachable WMS
+  // costs the overlay and not the page: the section does not go through it.
+  await refreshToken();
+  setInterval(refreshToken, 30000);
+  loadWmsLayers();
+
   try {
     const h = await api('/health');
     setStatus(h.ok, h.ok ? h.frames + ' frames' : (h.error || 'no archive'));
@@ -507,13 +657,15 @@ async function boot() {
     renderFamilies(info.families, info.levels);
 
     const fr = await api('/frames?limit=200');
+    frames = fr.frames;
     const sel = document.getElementById('time');
-    sel.innerHTML = fr.timestamps.map((t, i) =>
-      '<option value="' + t + '">' + t.replace('T', ' ').replace('Z', '') +
+    sel.innerHTML = frames.map((f, i) =>
+      '<option value="' + f.archive + '">' + f.archive.replace('T', ' ') +
       (i === 0 ? '  (latest)' : '') + '</option>').join('');
 
     const wanted = QUERY.get('time');
-    if (wanted && fr.timestamps.includes(wanted)) sel.value = wanted;
+    if (wanted && frames.some(f => f.archive === wanted)) sel.value = wanted;
+    syncWmsTime();
 
     if (DEEP_LINK.length === 4 && DEEP_LINK.every(Number.isFinite)) {
       pts = [[DEEP_LINK[0], DEEP_LINK[1]], [DEEP_LINK[2], DEEP_LINK[3]]];
@@ -529,8 +681,17 @@ async function boot() {
   }
 }
 
+/* The header carries both clocks, labelled.  A single bare timestamp on a
+   page that talks to a Moscow-time archive and a UTC WMS is the one thing
+   guaranteed to be misread. */
+function setFrameTime(archive, utc) {
+  document.getElementById('frame-time').innerHTML =
+    escapeHtml(archive.replace('T', ' ')) + ' <span class="z">MSK</span>' +
+    (utc ? '  ·  ' + escapeHtml(utc) : '');
+}
+
 function showFrame(info) {
-  document.getElementById('frame-time').textContent = info.frame_time;
+  setFrameTime(info.frame_time, info.frame_time_utc);
   document.getElementById('frame-info').innerHTML =
     '<b>Grid</b> ' + info.size + '² @ ' + (info.pixel_m / 1000) + ' km<br>' +
     '<b>Radars</b> ' + info.radars.length + '<br>' +
@@ -564,6 +725,7 @@ function pickFamily(f) {
 }
 
 function onTime() {
+  syncWmsTime();          // move the radar overlay with the picker
   api('/info?time=' + encodeURIComponent(document.getElementById('time').value))
     .then(showFrame).catch(e => toast(e.message, true));
   if (pts.length === 2) cut();
@@ -586,10 +748,11 @@ async function cut() {
     document.getElementById('sect-title').textContent =
       section.title + '  (' + section.units + ')';
     document.getElementById('sect-meta').textContent =
-      section.frame_time + '  ·  ' + section.length_km + ' km  ·  ' +
+      section.frame_time.replace('T', ' ') + '  ·  ' +
+      section.length_km + ' km  ·  ' +
       section.levels + ' levels  ·  ' +
       section.base_km + '–' + section.top_km + ' km';
-    document.getElementById('frame-time').textContent = section.frame_time;
+    setFrameTime(section.frame_time, section.frame_time_utc);
     drawSection();
 
     // keep the address bar on the section being shown, so the link in it is

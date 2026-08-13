@@ -48,6 +48,22 @@ import threading
 #: requests that would not have seen a new frame anyway.
 RESCAN_SECONDS = int(os.environ.get("XSECTION_RESCAN_SECONDS", "60"))
 
+#: Hours to take off an archive timestamp to get UTC.
+#:
+#: The .wrk headers carry local time - Moscow, so +3 - and carry no zone with
+#: it, which is why every timestamp out of pyimage is a naive datetime.  The
+#: WMS is UTC, because that is what the GeoTIFF pipeline registers and what
+#: the TIME dimension of a WMS means.  So a page showing a section and a radar
+#: overlay of "the same moment" is reading two clocks, and something has to
+#: convert.
+#:
+#: It converts here.  The alternative - subtracting three hours in the page -
+#: puts the deployment's timezone in a file that is served to browsers and
+#: copied between sites, and gets it wrong the first time this runs anywhere
+#: that is not Moscow.
+ARCHIVE_UTC_OFFSET_HOURS = float(
+    os.environ.get("XSECTION_ARCHIVE_UTC_OFFSET", "3"))
+
 #: the product each family is loaded through.  load() needs *a* product before
 #: the levels of a family can be found, and which one does not matter - level 1
 #: is the one every frame that carries the family carries.
@@ -69,6 +85,16 @@ IMAGE_HOME_CANDIDATES = [os.environ.get("IMAGE_HOME"),
 
 class EngineError(Exception):
     """Something the caller can be told about without a traceback."""
+
+
+def to_utc(stamp):
+    """An archive timestamp as UTC.  See ARCHIVE_UTC_OFFSET_HOURS."""
+    return stamp - datetime.timedelta(hours=ARCHIVE_UTC_OFFSET_HOURS)
+
+
+def utc_text(stamp):
+    """An archive timestamp as the WMS wants to be given a TIME."""
+    return to_utc(stamp).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _find_image_home():

@@ -13,7 +13,11 @@ HTTP shape of it and nothing more.
         Whether this worker has an archive, and what is in it.
 
   GET  /frames?limit=200
-        Archive timestamps, newest first.
+        Archive timestamps, newest first, each with the UTC of the same
+        instant.  The .wrk headers are Moscow time and the WMS is UTC, so
+        every frame is reported on both clocks: `archive` is what this API
+        takes back as ?time=, `utc` is what a WMS TIME wants.  See
+        ARCHIVE_UTC_OFFSET_HOURS in image_engine.py.
 
   GET  /info[?time=...]
         Grid geometry, projection, the radars in the frame, and which
@@ -57,7 +61,8 @@ from urllib.parse import parse_qs
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from image_engine import EngineError, cell_to_lonlat, engine  # noqa: E402
+from image_engine import (ARCHIVE_UTC_OFFSET_HOURS, EngineError,  # noqa: E402
+                          cell_to_lonlat, engine, utc_text)
 
 #: Cutting a line longer than this is a request to interpolate across most of
 #: the map, which is slow and says very little.  The grid is 6000 km across.
@@ -169,16 +174,24 @@ def frames(environ, start_response, params):
     except (TypeError, ValueError):
         raise EngineError("limit must be a number")
     stamps = engine().frames(limit=max(1, min(limit, 5000)))
+    # Two clocks, named.  `archive` is what this API takes back as ?time= and
+    # what the .wrk headers say; `utc` is the same instant for the WMS TIME
+    # dimension, which is UTC.  They are three hours apart in Moscow and would
+    # be silently interchangeable-looking if either were called "time".
     return _json(start_response, {
         "count": len(stamps),
-        "timestamps": [s.isoformat() + "Z" for s in stamps],
+        "utc_offset_hours": ARCHIVE_UTC_OFFSET_HOURS,
+        "frames": [{"archive": s.isoformat(), "utc": utc_text(s)}
+                   for s in stamps],
     })
 
 
 def info(environ, start_response, params):
     state = engine().info(when=_time(params))
     return _json(start_response, {
-        "frame_time": state["frame_time"].isoformat() + "Z",
+        "frame_time": state["frame_time"].isoformat(),
+        "frame_time_utc": utc_text(state["frame_time"]),
+        "utc_offset_hours": ARCHIVE_UTC_OFFSET_HOURS,
         "proj4": state["proj4"],
         "bbox": state["bbox"],
         "size": state["size"],
@@ -246,7 +259,8 @@ def xsection(environ, start_response, params):
         "family": family,
         "units": section.units,
         "title": section.title,
-        "frame_time": meta["frame_time"].isoformat() + "Z",
+        "frame_time": meta["frame_time"].isoformat(),
+        "frame_time_utc": utc_text(meta["frame_time"]),
         "requested_time": params.get("time") or "latest",
         "levels": meta["family_levels"],
         "width": section.width,
