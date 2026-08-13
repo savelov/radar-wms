@@ -166,6 +166,10 @@ def application (environ, start_response):
 
 def handle_request (environ, start_response):
 
+    if 'http://www.nowcast.ru' not in environ.get('HTTP_REFERER','') :
+        start_response('200 OK', [('Content-Type', 'text/html')])
+        return [b'Error']
+
     pars = cgi.FieldStorage(fp=environ['wsgi.input'],environ=environ)
 
     action = pars["ACTION"].value

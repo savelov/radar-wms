@@ -10,14 +10,39 @@ var lineLayer;
 var layer_name;
 var first_update = true;
 var time_value = -1; // current time
-// update every 5 minutes
+// update every 5 minutes 
 var updater = setInterval(update_times_and_refresh,300000);
 
 var bearing=45;
 var interval_id=0;
 
+let WMS_TOKEN = null;
+let LEGEND_BASE_URL = null;
 
-function update_times_and_refresh () {
+async function refreshToken() {
+    const res = await fetch("/get_token");
+    const data = await res.json();
+    WMS_TOKEN = data.token;
+
+    refreshLegend(); // ð¥ instant legend update
+}
+
+function refreshLegend() {
+    if (!LEGEND_BASE_URL || !WMS_TOKEN) return;
+
+    const img = document.getElementById("map_legend");
+
+    const newUrl = LEGEND_BASE_URL + "&token=" + encodeURIComponent(WMS_TOKEN);
+
+    // avoid redundant reloads
+    if (img.dataset.lastUrl !== newUrl) {
+        img.src = newUrl;
+        img.dataset.lastUrl = newUrl;
+    }
+}
+
+async function update_times_and_refresh () {
+    await refreshToken(); 
     if (document.getElementsByTagName("input")[0].checked) {
 	update_meta (); 
 	document.getElementsByTagName("select")[1].selectedIndex = 0;
@@ -55,13 +80,23 @@ var R=6371;
 }
 
 
-function init() {
+async function init() {
+
+      await refreshToken();
+      setInterval(refreshToken, 30000); // refresh every 30s
 
       layer_name = document.getElementsByTagName("select")[0].value;
 
       var wmsSource = new ol.source.ImageWMS({
         url: wms_url,
         params: {'LAYERS': layer_name},
+
+        imageLoadFunction: function(image, src) {
+           if (!WMS_TOKEN) return;
+           const separator = src.includes("?") ? "&" : "?";
+           image.getImage().src = src + separator + "token=" + encodeURIComponent(WMS_TOKEN);
+        },
+
         ratio: 1,
         serverType: 'geoserver'
       });
@@ -155,7 +190,7 @@ map.addControl(
 function update_meta () {
 
     var xmlhttp = new XMLHttpRequest();
-    var url = wms_url+'?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetCapabilities';
+    var url = wms_url+'?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetCapabilities&token='+encodeURIComponent(WMS_TOKEN);
 
     xmlhttp.onreadystatechange = function() {
     if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
@@ -175,8 +210,13 @@ function update_meta () {
                     start_select.innerHTML = select.innerHTML;
                     start_select.selectedIndex = 5;
                     end_select.innerHTML = select.innerHTML;
-                    var legend_url = layers[i].getElementsByTagName("LegendURL")[0].getElementsByTagName("OnlineResource")[0].getAttributeNS('http://www.w3.org/1999/xlink', 'href');
-                    document.getElementById("map_legend").src = legend_url.replace('http://','https://');
+		    LEGEND_BASE_URL = layers[i].getElementsByTagName("LegendURL")[0]
+			.getElementsByTagName("OnlineResource")[0]
+			.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
+			.replace('http://','https://');
+
+		    // initial load
+		    refreshLegend();
                     if (time_value==-1) {
                         time_value = document.getElementsByTagName("select")[1].value;
                     } else {
@@ -208,6 +248,39 @@ function update_layer_params() {
     wmsLayer.getSource().updateParams({'TIME': time_value,'LAYERS': layer_name});
     document.getElementsByTagName("select")[1].value=new_time_value;
 
+    var xmlhttp = new XMLHttpRequest();
+    var url = '/vector_wsgi?time='+time_value+'&title='+layer_name;
+
+    xmlhttp.onreadystatechange = function() {
+    if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+	lineLayer.getSource().clear();
+
+	var myArr = JSON.parse(xmlhttp.responseText);
+        var features = new Array(myArr.length);
+
+	for (var i=0; i<myArr.length; i++) {
+	    var lat = myArr[i][0];
+	    var lon = myArr[i][1];
+	    var dist= myArr[i][2]*3.6;
+	    var head= myArr[i][3];
+
+
+	    var points=[[lon,lat],destination(lon, lat, dist, head)];
+	    for (var j = 0; j < points.length; j++) {
+		points[j] = ol.proj.transform(points[j], 'EPSG:4326', 'EPSG:3857');
+	    }
+	    features[i] = new ol.Feature({
+		geometry: new ol.geom.LineString(points)
+	    });
+
+	}
+    	lineLayer.getSource().addFeatures(features);
+    }
+    };
+
+    xmlhttp.open("GET", url, true);
+    xmlhttp.send();
+
 }
 
 function go(direction) {
@@ -232,7 +305,8 @@ function findLayerClick(event) {
     viewResolution,
     map.getView().getProjection(),
     {'INFO_FORMAT': 'text/html'},
-  );
+  ) +'&token='+encodeURIComponent(WMS_TOKEN);
+
 
         if (url) {
           document.getElementById('featureinfo').innerHTML =
