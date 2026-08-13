@@ -34,9 +34,19 @@ DEPLOYMENT
 ----------
 This app must have a mod_wsgi daemon group to itself, threads=1.  That is not
 tuning, it is the engine's terms: one composite in C globals, and a working
-directory it takes over for the process.  xsection_apache.conf is the config
-that does it.  Sharing the radar_wms group instead - four processes, fifteen
-threads - would have fifteen threads in one composite.
+directory it takes over for the process.  image_xsection_apache.conf is the
+config that does it.  Sharing the radar_wms group instead - four processes,
+fifteen threads - would have fifteen threads in one composite.
+
+NOT TO BE CONFUSED WITH THE POLAR VOLUME CROSS SECTION
+------------------------------------------------------
+There is a second cross section service in this deployment, mounted at /api,
+which reads ODIM HDF5 polar volumes out of pvol_cache with h5py and does its
+own interpolation.  That one cuts through a single radar's sweeps; this one
+cuts through the mosaic the C engine builds from the .wrk archive.  They
+share a subject and nothing else - not a file, not a dependency, not a
+process.  The image_ prefix on everything here is what keeps them apart on
+disk, and the two projects are not merged.
 """
 
 import json

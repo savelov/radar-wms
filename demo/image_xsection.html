@@ -9,7 +9,7 @@
   Draw a line on the map, get the vertical slice under it.
 
   The cut is made by the IMAGE C engine (crosssect.c), served by
-  radar-wms/xsection_api.py.  Everything shown here comes from that: the
+  radar-wms/image_xsection_api.py.  Everything shown here comes from that: the
   values, their units, and the colours.  The colours especially - the API
   hands out the map's own legend rows, and this page colours the section by
   looking a value up in them, so a section and a map of one frame cannot
@@ -225,9 +225,9 @@ select { width:100%; }
 
 <script>
 // Same origin behind the Apache config that ships with this -
-// xsection_apache.conf mounts the API at /xsection.  ?api=... points it
+// image_xsection_apache.conf mounts the API at /xsection.  ?api=... points it
 // elsewhere, which is how the page is opened against a development server:
-//     xsection.html?api=http://127.0.0.1:8052
+//     image_xsection.html?api=http://127.0.0.1:8052
 const QUERY = new URLSearchParams(location.search);
 const API = QUERY.get('api') || '/xsection';
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """The IMAGE engine, held for the lifetime of one mod_wsgi worker.
 
-xsection_api.py cuts vertical sections out of the C compositor through
+image_xsection_api.py cuts vertical sections out of the C compositor through
 pyimage, and pyimage drives libimage.so in process.  The engine keeps its
 state in globals, so this module is what stands between it and Apache.
 
@@ -20,9 +20,9 @@ Three things about the engine decide the shape of everything here:
 
 The first two say the engine wants a process to itself.  That is a daemon
 group of its own in the Apache config, threads=1, serving nothing else - see
-xsection_apache.conf, which is the other half of this file.  The lock below
-is belt and braces for that: it is what makes the failure a queue rather
-than a corrupted composite if the group is ever widened by mistake.
+image_xsection_apache.conf, which is the other half of this file.  The lock
+below is belt and braces for that: it is what makes the failure a queue
+rather than a corrupted composite if the group is ever widened by mistake.
 
 The third is why the Archive is reopened rather than opened once.
 
