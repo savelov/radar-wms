@@ -1,0 +1,19 @@
+# Rotated Apache logs, pulled here for the token scraper analysis
+access.log*
+error.log*
+
+# Rendered products.  The pipeline writes these into wms_data_dir; the ones
+# that land here are from a --dry-run or a one-off check.
+*.tiff
+*.tif
+
+__pycache__/
+*.pyc
+
+# Local, and holds credentials: see baltrad_wms.cfg.template for the shape
+baltrad_wms.cfg
+
+# Editor and agent scratch
+.claude/
+*.swp
+*~
