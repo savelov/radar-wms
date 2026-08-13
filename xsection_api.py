@@ -56,13 +56,22 @@ MAX_LENGTH_KM = 3000.0
 
 # -- replies ---------------------------------------------------------------
 
+#: Sent on every reply, not only on the preflight.  The Apache config sets
+#: these too and the duplicate is harmless; setting them here as well is what
+#: lets the app be correct when it is run any other way - the development
+#: server, or behind a proxy that was not told about it.
+CORS = [("Access-Control-Allow-Origin", "*"),
+        ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
+        ("Access-Control-Allow-Headers", "Content-Type")]
+
+
 def _json(start_response, payload, status="200 OK", cache=None):
     body = json.dumps(payload, ensure_ascii=False,
                       default=str).encode("utf-8")
     headers = [("Content-Type", "application/json; charset=utf-8"),
                ("Content-Length", str(len(body)))]
     headers.append(("Cache-Control", cache or "no-cache"))
-    start_response(status, headers)
+    start_response(status, headers + CORS)
     return [body]
 
 
@@ -74,7 +83,7 @@ def _png(start_response, blob, cache=None):
     headers = [("Content-Type", "image/png"),
                ("Content-Length", str(len(blob))),
                ("Cache-Control", cache or "no-cache")]
-    start_response("200 OK", headers)
+    start_response("200 OK", headers + CORS)
     return [blob]
 
 
@@ -269,12 +278,7 @@ def application(environ, start_response):
     method = environ.get("REQUEST_METHOD", "GET").upper()
 
     if method == "OPTIONS":            # the CORS preflight for the POST
-        start_response("204 No Content", [
-            ("Access-Control-Allow-Origin", "*"),
-            ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
-            ("Access-Control-Allow-Headers", "Content-Type"),
-            ("Content-Length", "0"),
-        ])
+        start_response("204 No Content", CORS + [("Content-Length", "0")])
         return [b""]
 
     if method not in ("GET", "POST"):
