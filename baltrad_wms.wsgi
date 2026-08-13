@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import mapscript
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, unquote
 from html import escape
 
 # needed to import baltrad_wms.py
@@ -12,12 +12,18 @@ from baltrad_wms import read_config,wms_request,read_session
 from token_utils import generate_token, validate_token
 
 def application(environ, start_response):
-    path = environ.get("SCRIPT_NAME", "")
+    # SCRIPT_NAME is wherever Apache mounted this, which is not one spelling:
+    # /wms on the CAPPI site, /baltrad_wsgi on the older one.  Naming a single
+    # mount here and guarding only that left every other one falling off the
+    # end of the function and returning None, which mod_wsgi turns into a 500
+    # with nothing in the log to say why.  The token endpoint is the one
+    # special case; everything else is the WMS, and everything else is guarded.
+    path = environ.get("SCRIPT_NAME", "") + environ.get("PATH_INFO", "")
 
     client_ip = environ.get("REMOTE_ADDR", "")
 
     # 🔑 Token endpoint
-    if path == "/get_token":
+    if path.rstrip("/").endswith("get_token"):
         token = generate_token(client_ip)
 
         start_response("200 OK", [
@@ -27,32 +33,33 @@ def application(environ, start_response):
         return [f'{{"token":"{token}"}}'.encode()]
 
     # 🌍 WMS protection
-    if path == "/baltrad_wsgi":
-        query = environ.get("QUERY_STRING", "")
-        params = dict(
-            p.split("=", 1) for p in query.split("&") if "=" in p
-        )
+    query = environ.get("QUERY_STRING", "")
+    pairs = [p for p in query.split("&") if p]
 
-        token = params.get("token")
+    token = None
+    for p in pairs:
+        if p.startswith("token="):
+            token = unquote(p[len("token="):])
+            break
 
-        if not token or not validate_token(token, client_ip):
-            start_response("403 Forbidden", [("Content-Type", "text/plain")])
-            return [b"Forbidden"]
+    if not token or not validate_token(token, client_ip):
+        start_response("403 Forbidden", [("Content-Type", "text/plain")])
+        return [b"Forbidden"]
 
-        # remove token before passing to MapServer (optional)
-        if "token" in params:
-            del params["token"]
-            environ["QUERY_STRING"] = "&".join(
-                f"{k}={v}" for k, v in params.items()
-            )
+    # Drop the token before MapServer sees the request, keeping every other
+    # pair exactly as it arrived.  Rebuilding the string from a parsed dict
+    # re-encodes it, and a WMS query carries values that do not survive the
+    # round trip unchanged - the commas in BBOX, the colons in TIME.
+    environ["QUERY_STRING"] = "&".join(p for p in pairs
+                                       if not p.startswith("token="))
 
-        # 👉 continue existing logic
-        try:
-            return real_application(environ, start_response)
-        finally:
-            # return the connection to the pool and drop any open read
-            # transaction — a leaked session pins the WAL file
-            read_session.remove()
+    # 👉 continue existing logic
+    try:
+        return real_application(environ, start_response)
+    finally:
+        # return the connection to the pool and drop any open read
+        # transaction — a leaked session pins the WAL file
+        read_session.remove()
 
 
 def real_application(environ,start_response):
