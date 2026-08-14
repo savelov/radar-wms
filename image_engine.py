@@ -59,7 +59,15 @@ _UNSET = object()
 #: whether anything actually landed, from the mtimes of the port directories,
 #: and the expensive part happens only when it did - which is once per pipeline
 #: cycle rather than once a minute.
-RESCAN_SECONDS = int(os.environ.get("XSECTION_RESCAN_SECONDS", "60"))
+#: It is also the FLOOR between reopens, and that is why the default is what
+#: it is.  The mtime test below can only say "a file was written", not "a
+#: frame arrived", and on a network of 36 radars delivering asynchronously
+#: something is written more or less continuously - so on the production
+#: archive the test was true on essentially every check and it reopened every
+#: 74 seconds, each one an eight second request, without the frame count ever
+#: changing.  Frames land every ten minutes; looking oftener than that cannot
+#: find anything and can only cost.
+RESCAN_SECONDS = int(os.environ.get("XSECTION_RESCAN_SECONDS", "300"))
 
 #: Hours to take off an archive timestamp to get UTC.
 #:
@@ -524,10 +532,18 @@ class Engine(object):
             return section, out
 
     def health(self):
-        """Enough to tell a monitor whether this worker is any use."""
+        """Enough to tell a monitor whether this worker is any use.
+
+        Deliberately does NOT re-read the archive.  A health check that can
+        cost eight seconds is not a health check - whoever is asking wants to
+        know what this worker is doing, and making them wait for a directory
+        scan to find out is the opposite of that.  It opens the archive if
+        nothing has yet, and otherwise reports what is already known, stale
+        frame count and all.
+        """
         with self._lock:
             try:
-                archive = self._current()
+                archive = self._archive or self._open()
             except EngineError as error:
                 return {"ok": False, "error": str(error), "pid": os.getpid(),
                         "rss_mb": _rss_mb()}
