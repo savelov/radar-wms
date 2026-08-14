@@ -46,28 +46,28 @@ import threading
 #: distinguishes "not looked yet" from "looked, and there is none"
 _UNSET = object()
 
-#: How often to consider re-reading the archive directory.
+#: How often to look for new frames.
 #:
-#: Considering is cheap and doing it is not.  Reopening an Archive re-runs the
-#: C directory scan, which walks one file per radar per frame - on the
-#: production archive, 38 radars over 179000 frames, that is nearly seven
-#: million names and takes about fourteen seconds.  Every reopen also throws
-#: away the mosaic in the C globals, so the next cut pays its seven seconds
-#: again on top.
+#: Looking is cheap; reopening is not.  Reopening an Archive re-runs the C
+#: directory scan, which walks one file per radar per frame - on the
+#: production archive, 36 radars over 179000 frames, about eight seconds - and
+#: throws away the mosaic in the C globals with it.
 #:
-#: So the timer below only decides when to LOOK.  _archive_changed() then says
-#: whether anything actually landed, from the mtimes of the port directories,
-#: and the expensive part happens only when it did - which is once per pipeline
-#: cycle rather than once a minute.
-#: It is also the FLOOR between reopens, and that is why the default is what
-#: it is.  The mtime test below can only say "a file was written", not "a
-#: frame arrived", and on a network of 36 radars delivering asynchronously
-#: something is written more or less continuously - so on the production
-#: archive the test was true on essentially every check and it reopened every
-#: 74 seconds, each one an eight second request, without the frame count ever
-#: changing.  Frames land every ten minutes; looking oftener than that cannot
-#: find anything and can only cost.
-RESCAN_SECONDS = int(os.environ.get("XSECTION_RESCAN_SECONDS", "300"))
+#: A minute is affordable because the look is _newest_on_disk(): a directory
+#: listing per radar, answering "is there a frame here we have not got".  It
+#: used to be the mtimes, which answer "was anything written" - true almost
+#: continuously on a live network, so it reopened every 74 seconds and found
+#: nothing every time.
+RESCAN_SECONDS = int(os.environ.get("XSECTION_RESCAN_SECONDS", "60"))
+
+#: How long before the mtimes are allowed to force a reopen on their own.
+#:
+#: No new name appears when a radar joins a frame that already exists, and the
+#: newest frame is often part written - so something has to notice, and the
+#: mtimes are all there is.  They cannot be trusted at the interval above or
+#: they would put the every-74-seconds behaviour straight back, so they get
+#: their say on the slow clock instead.
+REFILL_SECONDS = int(os.environ.get("XSECTION_REFILL_SECONDS", "600"))
 
 #: Hours to take off an archive timestamp to get UTC.
 #:
@@ -184,12 +184,14 @@ class Engine(object):
     different frame in between would cut through the wrong one.
     """
 
-    def __init__(self, paths=None, rescan_seconds=RESCAN_SECONDS):
+    def __init__(self, paths=None, rescan_seconds=RESCAN_SECONDS,
+                 refill_seconds=REFILL_SECONDS):
         self._lock = threading.RLock()
         self._archive = None
         self._pyimage = None
         self._opened_at = None
         self._rescan = rescan_seconds
+        self._refill = refill_seconds
         self._home = _find_image_home()
         self._paths = os.path.abspath(paths or os.path.join(self._home, "paths"))
         self._map = _UNSET      # the MAP directory, parsed once on first use
@@ -238,6 +240,47 @@ class Engine(object):
         except OSError:
             pass
         return self._map
+
+    def _newest_on_disk(self):
+        """The newest frame in the archive, from the file names alone.
+
+        <map>/port<N>/YYMMDDHH.MMm, zero padded throughout, so the names sort
+        chronologically and the largest one in a port directory is that
+        radar's newest frame.  The largest of those is the archive's.
+
+        This is the question the mtime test could not answer.  A mtime says a
+        file was written, and with 36 radars delivering asynchronously that is
+        true more or less continuously - it fired on every check and reopened
+        every 74 seconds without the frame count ever changing.  A name says
+        WHICH frame was written, so a reopen happens when there is something
+        new to find and not merely something new on disk.
+
+        Costs a directory listing per radar - milliseconds against the eight
+        seconds a read_dir of the whole archive costs.  None when the layout
+        is not what is expected, which the caller reads as "assume stale".
+        """
+        mapdir = self._mapdir()
+        if not mapdir:
+            return None
+        newest = ""
+        try:
+            with os.scandir(mapdir) as ports:
+                for port in ports:
+                    if not port.is_dir():
+                        continue
+                    for name in os.listdir(port.path):
+                        if name > newest and name.endswith("m"):
+                            newest = name
+        except OSError:
+            return None
+        if len(newest) < 12:
+            return None
+        try:
+            return datetime.datetime(2000 + int(newest[0:2]), int(newest[2:4]),
+                                     int(newest[4:6]), int(newest[6:8]),
+                                     int(newest[9:11]))
+        except ValueError:          # a stray name that is not a frame
+            return None
 
     def _archive_stamp(self):
         """A cheap fingerprint of the archive's contents.
@@ -292,13 +335,22 @@ class Engine(object):
         return self._archive
 
     def _current(self):
-        """The archive, re-read only when the directory says there is a point.
+        """The archive, re-read only when there is something new to find.
 
         Caller holds the lock.  read_dir() runs once per Archive, so reopening
-        is the only way to notice new frames - but it is expensive enough on a
-        large archive that doing it on a timer alone means a fourteen second
-        request once a minute.  The timer decides when to look; the mtimes
-        decide whether to pay.
+        is the only way to notice new frames, and on a large archive it costs
+        about eight seconds - too much to spend on a timer alone.
+
+        Two questions, asked in order of how cheap they are:
+
+          * has a frame arrived that we do not have?  The file names say so
+            directly, at a directory listing per radar.  This is the one that
+            matters, and it is what makes a short interval affordable.
+          * failing that, has anything at all been written?  A radar can join
+            a frame we already know about - the newest frame is often part
+            written - and no new name appears when it does.  That is the
+            mtimes, and because they are true almost continuously on a busy
+            network they are only allowed to force a reopen occasionally.
         """
         if self._archive is None:
             return self._open()
@@ -307,12 +359,20 @@ class Engine(object):
         if age < self._rescan:
             return self._archive
 
+        # a frame we have not got is worth eight seconds straight away
+        newest = self._newest_on_disk()
+        if newest is None or (self._times and newest > self._times[-1]):
+            return self._open()
+
+        # no new frame.  A radar may still have joined one we have, which no
+        # name reveals - so the mtimes get their say, but only every so often,
+        # or they would put us back to reopening every minute for nothing.
         stamp = self._archive_stamp()
-        if stamp is not None and stamp == self._stamp:
-            # nothing new landed; charge the timer, not the archive
-            self._opened_at = datetime.datetime.now()
-            return self._archive
-        return self._open()
+        if (stamp is None or stamp != self._stamp) and age >= self._refill:
+            return self._open()
+
+        self._opened_at = datetime.datetime.now()   # charge the timer only
+        return self._archive
 
     def close(self):
         with self._lock:
