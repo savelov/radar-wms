@@ -172,23 +172,64 @@ aside h2 .sub { text-transform:none; letter-spacing:0; color:var(--accent2);
 .toast.on { transform:translateX(-50%) translateY(0); }
 .toast.bad { border-left-color:var(--danger); color:#ffc7cd; }
 
-@media (max-width:820px) {
-  aside { position:absolute; z-index:20; height:calc(100% - var(--hdr-h));
-          transform:translateX(-100%); transition:transform .2s; }
-  aside.open { transform:none; }
-  #burger { display:block; }
-}
+/* The default has to come BEFORE the media query, not after it.  Both rules
+   are #burger, so they have the same specificity and the later one wins
+   whatever the screen is - which is why the button was never displayed and
+   the drawer could not be opened on a phone at all. */
 #burger { display:none; }
+
+.scrim { display:none; position:fixed; inset:var(--hdr-h) 0 0 0; z-index:25;
+         background:rgba(6,10,15,.6); opacity:0; transition:opacity .22s; }
+.scrim.on { opacity:1; }
+
+@media (max-width:820px) {
+  #burger { display:block; font-size:1rem; padding:5px 10px; }
+  /* Nothing in the header may wrap: it is a fixed 42px and a title on three
+     lines pushes the timestamp out of the bar entirely. */
+  header { gap:9px; padding:0 10px; }
+  header h1 { font-size:.78rem; white-space:nowrap;
+              overflow:hidden; text-overflow:ellipsis; }
+  header .frame { font-size:.58rem; white-space:nowrap; }
+  header .status { font-size:.58rem; white-space:nowrap; }
+
+  aside {
+    position:fixed; z-index:30; top:var(--hdr-h); left:0;
+    width:min(88vw, 330px); height:calc(100% - var(--hdr-h));
+    transform:translateX(-101%); transition:transform .22s;
+    box-shadow:6px 0 26px rgba(0,0,0,.55);
+    -webkit-overflow-scrolling:touch;
+  }
+  aside.open { transform:none; }
+  .scrim.on { display:block; }
+
+  /* Touch targets, and room for the two panes to share a short screen. */
+  button, select { padding:9px 11px; font-size:.76rem; }
+  .radars label { padding:5px 0; }
+  .radars input { width:17px; height:17px; }
+  .panel { height:46vh; }
+  #legend { width:74px; font-size:.55rem; padding:5px 5px; }
+  #legend .sw { width:11px; height:9px; }
+  .panel .bar { flex-wrap:wrap; gap:4px 10px; font-size:.62rem; }
+  .panel .bar .readout { margin-left:0; width:100%; }
+  #map .hint { font-size:.6rem; padding:4px 8px; }
+}
+
+/* On a phone the frame time is worth more bar than the page's own name. */
+@media (max-width:520px) {
+  header h1 { display:none; }
+}
 </style>
 </head>
 <body>
 
 <header>
-  <button id="burger" onclick="document.querySelector('aside').classList.toggle('open')">☰</button>
+  <button id="burger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
   <h1>Vertical cross section</h1>
   <span class="frame" id="frame-time">—</span>
   <span class="status"><span class="dot" id="dot"></span><span id="status">connecting…</span></span>
 </header>
+
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
 
 <main>
   <aside>
@@ -596,6 +637,28 @@ document.getElementById('sect').addEventListener('mousemove', e => {
 document.getElementById('sect').addEventListener('mouseleave',
   () => document.getElementById('readout').textContent = '');
 
+/* ── the drawer, on a phone ──────────────────────────────────────────── */
+
+/* Everything that drives the section lives in the sidebar, so on a screen too
+   narrow to keep it open the page is unusable without a way back to it.  The
+   button existed; the CSS that hid it did not stop at the media query, so it
+   was hidden at every width. */
+function toggleDrawer(open) {
+  const side = document.querySelector('aside');
+  if (open === undefined) open = !side.classList.contains('open');
+  side.classList.toggle('open', open);
+  document.getElementById('scrim').classList.toggle('on', open);
+}
+
+function closeDrawer() { toggleDrawer(false); }
+
+/* Choosing a time or a family is the end of a visit to the drawer: what it
+   changes is behind it.  Only on the narrow layout, where the drawer covers
+   the map - on a wide screen it is not covering anything. */
+function drawerDoneIfNarrow() {
+  if (window.matchMedia('(max-width: 820px)').matches) closeDrawer();
+}
+
 /* ── which radars feed the section ───────────────────────────────────── */
 
 /* Every radar in the frame, nearest to the line first, with the ones actually
@@ -904,6 +967,7 @@ function renderFamilies(list, levels) {
 }
 
 function pickFamily(f) {
+  drawerDoneIfNarrow();
   family = f;
   document.querySelectorAll('#families button').forEach(b =>
     b.classList.toggle('on', b.dataset.f === f));
@@ -911,6 +975,7 @@ function pickFamily(f) {
 }
 
 function onTime() {
+  drawerDoneIfNarrow();
   ports = null;           // and to the old frame
   syncWmsTime();          // move the radar overlay with the picker
   api('/info?time=' + encodeURIComponent(document.getElementById('time').value))
@@ -920,6 +985,7 @@ function onTime() {
 
 async function cut() {
   if (pts.length !== 2) return;
+  drawerDoneIfNarrow();
   veil(true, 'Cutting the section…');
   try {
     const q = new URLSearchParams({
