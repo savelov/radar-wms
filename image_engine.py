@@ -318,24 +318,48 @@ class Engine(object):
         return after if (after.timestamp - when) < (when - before.timestamp) \
             else before
 
-    def _load(self, frame, product):
-        """Mosaic `product` for `frame`, unless it is already up.  Locked."""
+    def _load(self, frame, product, only=None):
+        """Mosaic `product` for `frame`, unless it is already up.  Locked.
+
+        `only` narrows the read to one family, which is three times cheaper
+        than reading all forty-four products - on the production archive that
+        is about two seconds against seven.
+
+        The cache is keyed on what was read, not just on which product was
+        selected, and a request is a hit when what it needs is a SUBSET of
+        what is loaded.  That is what stops narrowing from costing anything:
+        a frame read whole still satisfies every family afterwards, and only
+        a frame that was never read pays, and pays narrowly.
+        """
         pyimage = self._pyimage
-        if self._loaded == (frame.timestamp, product):
+        want = (self._archive.all_mask if only is None
+                else self._archive.family_mask(only)
+                | (1 << self._archive._lib.map_index(pyimage.PRODUCTS[product])))
+
+        if (self._loaded and self._loaded[0] == frame.timestamp
+                and not (want & ~self._loaded[1])):
+            # everything asked for is already in the composite; set_cur_map is
+            # still needed, because "which product is current" is not the mask
+            self._archive._lib.set_cur_map(pyimage.PRODUCTS[product])
+            frame.product = product
             return frame
+
         try:
-            frame.load(product)
+            frame.load(product, only=only)
         except pyimage.ImageError as error:
             self._loaded = None
             raise EngineError(str(error))
-        self._loaded = (frame.timestamp, product)
+        self._loaded = (frame.timestamp, self._archive.loaded_mask)
         return frame
 
     def info(self, when=None, product="dbz1"):
         """Grid geometry, projection and the radars of one frame."""
         with self._lock:
             frame = self._frame_for(when)
-            self._load(frame, product)
+            # everything, deliberately: this reports the level count of every
+            # family and there is no counting them without reading them.  It
+            # runs once per page load, where a cut runs on every drawn line.
+            self._load(frame, product, only=None)
             info = dict(frame.info)
             # `families` is what can be cut - two levels or more.  `levels`
             # counts every family, including the ones that cannot, so a caller
@@ -361,7 +385,7 @@ class Engine(object):
                               % (family, ", ".join(sorted(FAMILY_PRODUCT))))
         with self._lock:
             frame = self._frame_for(when)
-            self._load(frame, product)
+            self._load(frame, product, only=family)
             return frame.legend(family)
 
     def cross_section(self, lon1, lat1, lon2, lat2, family="dbz",
@@ -379,7 +403,7 @@ class Engine(object):
 
         with self._lock:
             frame = self._frame_for(when)
-            self._load(frame, product)
+            self._load(frame, product, only=family)
             info = frame.info
 
             x1, y1 = lonlat_to_cell(info, lon1, lat1)
@@ -418,8 +442,9 @@ class Engine(object):
                 "frames": len(self._times),
                 "newest": self._times[-1].isoformat() + "Z" if self._times else None,
                 "oldest": self._times[0].isoformat() + "Z" if self._times else None,
-                "loaded": ("%s %s" % (self._loaded[0].isoformat(),
-                                      self._loaded[1])
+                "loaded": ("%s (%d products)"
+                           % (self._loaded[0].isoformat(),
+                              bin(self._loaded[1]).count("1"))
                            if self._loaded else None),
                 # what the slow path is doing, because that is the question
                 # anyone looking at this endpoint is actually asking
