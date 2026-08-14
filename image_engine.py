@@ -175,6 +175,11 @@ class Engine(object):
         #: the whole reason the engine is kept warm: the load is about a
         #: second and the cut that follows it is twenty milliseconds.
         self._loaded = None
+        #: (timestamp, radars) from a read with every port open.  Deciding
+        #: which radars a line needs requires knowing where they all are, and
+        #: that costs a read - so it is remembered per frame rather than paid
+        #: again on every cut of the same frame.
+        self._radars = None
 
     # -- opening ----------------------------------------------------------
 
@@ -240,6 +245,10 @@ class Engine(object):
             self._archive.close()
             self._archive = None
             self._loaded = None
+        # A reopen is how a frame that was part written when it was first read
+        # is noticed to have gained a radar since, so the remembered positions
+        # go with it rather than outliving the read they came from.
+        self._radars = None
         stamp = self._archive_stamp()          # before the scan, never after
         try:
             self._archive = pyimage.Archive(self._paths, workdir=self._home)
@@ -391,6 +400,8 @@ class Engine(object):
                               for fam in FAMILY_PRODUCT}
             info["families"] = [fam for fam in FAMILY_PRODUCT
                                 if info["levels"][fam] >= 2]
+            # this read had every port open, so it knows where the radars are
+            self._radars = (frame.timestamp, info["radars"])
             info["frame_time"] = frame.timestamp
             return info
 
@@ -435,13 +446,25 @@ class Engine(object):
             frame = self._frame_for(when)
 
             # Which radars to open cannot be decided without knowing where
-            # they are, and that comes from header.wrk - one per port, read
-            # for every radar the frame carries.  So this is the cheap read
-            # first: one product mosaicked and the rest as passports, which is
-            # exactly the call info() makes, and therefore already cached for
-            # this frame on any page that loaded before it drew a line.
-            self._load(frame, product, passports=True)
-            near = radars_for_line(frame.info, lon1, lat1, lon2, lat2, range_km)
+            # they all are, and that comes from header.wrk - one per port, and
+            # only for the ports that were opened.  So it takes a read with
+            # every port open, which is the opposite of what the cut wants.
+            #
+            # Doing that read on every cut made the two fight: the wide read
+            # evicted the narrow one and the narrow one evicted the wide one,
+            # so nothing was ever a cache hit and every cut paid twice.  The
+            # positions are per frame and do not change within it, so they are
+            # remembered instead, and the wide read happens once per frame.
+            if self._radars and self._radars[0] == frame.timestamp:
+                radars = self._radars[1]
+            else:
+                self._load(frame, product, passports=True)
+                radars = frame.info["radars"]
+                self._radars = (frame.timestamp, radars)
+
+            near = radars_for_line({"proj4": frame.info["proj4"],
+                                    "radars": radars},
+                                   lon1, lat1, lon2, lat2, range_km)
             if ports is None:
                 ports = [r["port"] for r in near if r["within"]]
             else:
