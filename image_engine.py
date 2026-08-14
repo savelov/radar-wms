@@ -140,6 +140,24 @@ def _find_image_home():
            "applies", _whoami()))
 
 
+def _rss_mb():
+    """This worker's resident size, or None where /proc says nothing.
+
+    Worth reporting because every mod_wsgi process is a full independent copy
+    of all this - its own archive, its own grids - so `processes` in the
+    daemon group multiplies whatever this says.  On a box that has swapped
+    before, that is the number to watch before raising it.
+    """
+    try:
+        with open("/proc/self/status") as handle:
+            for line in handle:
+                if line.startswith("VmRSS:"):
+                    return round(int(line.split()[1]) / 1024.0, 1)
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
 def _whoami():
     """The user the worker runs as, for a message about permissions."""
     try:
@@ -511,7 +529,8 @@ class Engine(object):
             try:
                 archive = self._current()
             except EngineError as error:
-                return {"ok": False, "error": str(error), "pid": os.getpid()}
+                return {"ok": False, "error": str(error), "pid": os.getpid(),
+                        "rss_mb": _rss_mb()}
             return {
                 "ok": True,
                 "pid": os.getpid(),
@@ -530,6 +549,7 @@ class Engine(object):
                            if self._loaded else None),
                 # what the slow path is doing, because that is the question
                 # anyone looking at this endpoint is actually asking
+                "rss_mb": _rss_mb(),
                 "opened_at": self._opened_at.isoformat() if self._opened_at else None,
                 "rescan_seconds": self._rescan,
                 "archive_dir": self._mapdir(),
