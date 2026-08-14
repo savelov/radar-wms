@@ -262,6 +262,22 @@ const API = QUERY.get('api') || '/xsection';
 const WMS       = QUERY.get('wms')   || '/baltrad_wsgi';
 const TOKEN_URL = QUERY.get('token') || '/get_token';
 
+// Which overlay to show when nobody asked for one.  A page that comes up with
+// the radar already on it is the point - drawing a line across an empty
+// basemap and trusting your memory of where the weather was is what this
+// replaces.  First of these that the server actually has wins; if it has none
+// of them the overlay stays off rather than picking one of fifty-four at
+// random.  ?layer= overrides, and whatever is chosen is remembered.
+const PREFERRED_LAYERS = ['bufr_phenomena', 'bufr_dbz1',
+                          'gimet_phenomena', 'gimet_dbz', 'baltrad_dbz'];
+
+function rememberedLayer() {
+  try { return localStorage.getItem('xsection.layer'); } catch (e) { return null; }
+}
+function rememberLayer(name) {
+  try { localStorage.setItem('xsection.layer', name); } catch (e) { /* private mode */ }
+}
+
 // TWO CLOCKS.  The .wrk archive carries Moscow time and the WMS carries UTC,
 // three hours apart.  The API reports both for every frame, `archive` and
 // `utc`, and the rule here is: `archive` goes back to the API as ?time=, `utc`
@@ -613,8 +629,9 @@ async function loadWmsLayers() {
       [...wmsLayers.keys()].map(n =>
         '<option value="' + n + '">' + escapeHtml(n) + '</option>').join('');
 
-    const wanted = QUERY.get('layer');
-    sel.value = wanted && wmsLayers.has(wanted) ? wanted : '';
+    const wanted = [QUERY.get('layer'), rememberedLayer(),
+                    ...PREFERRED_LAYERS].find(n => n && wmsLayers.has(n));
+    sel.value = wanted || '';
     markFramesWithImagery();
     if (sel.value) onWmsLayer();
   } catch (e) {
@@ -640,7 +657,10 @@ function markFramesWithImagery() {
 
 function onWmsLayer() {
   const layer = document.getElementById('wms-layer').value;
-  if (layer) wmsSource.updateParams({ LAYERS: layer });
+  if (layer) {
+    wmsSource.updateParams({ LAYERS: layer });
+    rememberLayer(layer);
+  }
   markFramesWithImagery();
   syncWmsTime();
 }
