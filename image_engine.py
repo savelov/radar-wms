@@ -318,7 +318,7 @@ class Engine(object):
         return after if (after.timestamp - when) < (when - before.timestamp) \
             else before
 
-    def _load(self, frame, product, only=None, passports=False):
+    def _load(self, frame, product, only=None, passports=False, ports=None):
         """Mosaic `product` for `frame`, unless it is already up.  Locked.
 
         `only` narrows the read to one family, which is three times cheaper
@@ -333,9 +333,22 @@ class Engine(object):
         """
         pyimage = self._pyimage
         want = self._archive.mask_for(product, only, passports)
+        # None means every radar.  In the cache key that has to be a mask like
+        # any other, or a cut restricted to two radars would satisfy the next
+        # one that wanted all of them.
+        pmask = (self._archive.PORT_ALL if ports is None
+                 else self._archive.port_mask(ports))
 
+        # Products and ports cache differently, and the difference is not a
+        # detail.  Having MORE products loaded than asked for is harmless: the
+        # extra ones sit in their own buffers and nothing reads them.  Having
+        # more RADARS loaded is not - they are merged into one composite, so a
+        # cut over a mosaic built from five radars is a different picture from
+        # the same cut over three, which is the whole point of being able to
+        # exclude one.  Subset for products, exact for ports.
         if (self._loaded and self._loaded[0] == frame.timestamp
-                and not (want & ~self._loaded[1])):
+                and not (want & ~self._loaded[1])
+                and pmask == self._loaded[2]):
             # everything asked for is already in the composite; set_cur_map is
             # still needed, because "which product is current" is not the mask
             self._archive._lib.set_cur_map(pyimage.PRODUCTS[product])
@@ -343,11 +356,11 @@ class Engine(object):
             return frame
 
         try:
-            frame.load(product, only=only, passports=passports)
+            frame.load(product, only=only, passports=passports, ports=ports)
         except pyimage.ImageError as error:
             self._loaded = None
             raise EngineError(str(error))
-        self._loaded = (frame.timestamp, self._archive.loaded_mask)
+        self._loaded = (frame.timestamp, self._archive.loaded_mask, pmask)
         return frame
 
     def info(self, when=None, product="dbz1"):
@@ -398,12 +411,20 @@ class Engine(object):
             return frame.legend(family)
 
     def cross_section(self, lon1, lat1, lon2, lat2, family="dbz",
-                      when=None, smooth=True, values=True):
+                      when=None, smooth=True, values=True, ports=None,
+                      range_km=None):
         """Cut a section between two lon/lat points.
 
         Returns (CrossSection, info) with the frame's info alongside, because
         the caller needs the geometry that turned the coordinates into cells
         in order to describe what it is sending back.
+
+        `ports` is the radars to build the mosaic from.  Left alone, it is
+        every radar within RADAR_RANGE_KM of the line: one that cannot see any
+        of it contributes nothing but the time taken to unzip it.  Given
+        explicitly, it is also how to choose between two radars that overlap -
+        Sochi and Ahun, Pulkovo and Voeykovo - where the merge would otherwise
+        pick for you and the section would be of whichever it preferred.
         """
         product = FAMILY_PRODUCT.get(family)
         if product is None:
@@ -412,7 +433,32 @@ class Engine(object):
 
         with self._lock:
             frame = self._frame_for(when)
-            self._load(frame, product, only=family)
+
+            # Which radars to open cannot be decided without knowing where
+            # they are, and that comes from header.wrk - one per port, read
+            # for every radar the frame carries.  So this is the cheap read
+            # first: one product mosaicked and the rest as passports, which is
+            # exactly the call info() makes, and therefore already cached for
+            # this frame on any page that loaded before it drew a line.
+            self._load(frame, product, passports=True)
+            near = radars_for_line(frame.info, lon1, lat1, lon2, lat2, range_km)
+            if ports is None:
+                ports = [r["port"] for r in near if r["within"]]
+            else:
+                ports = [int(p) for p in ports]
+            for radar in near:
+                radar["used"] = radar["port"] in ports
+
+            if not ports:
+                raise EngineError(
+                    "no radar within %.0f km of that line - the nearest is %s "
+                    "at %.0f km"
+                    % (range_km or RADAR_RANGE_KM,
+                       near[0]["name"] if near else "none",
+                       near[0]["distance_km"] if near else 0))
+
+            # and now the real load, with only those radars opened
+            self._load(frame, product, only=family, ports=ports)
             info = frame.info
 
             x1, y1 = lonlat_to_cell(info, lon1, lat1)
@@ -432,6 +478,8 @@ class Engine(object):
             out["cells"] = (x1, y1, x2, y2)
             out["legend"] = frame.legend(family)
             out["family_levels"] = frame.levels(family)
+            out["radars_near"] = near
+            out["ports_used"] = ports
             return section, out
 
     def health(self):
@@ -451,9 +499,11 @@ class Engine(object):
                 "frames": len(self._times),
                 "newest": self._times[-1].isoformat() + "Z" if self._times else None,
                 "oldest": self._times[0].isoformat() + "Z" if self._times else None,
-                "loaded": ("%s (%d products)"
+                "loaded": ("%s (%d products, %s radars)"
                            % (self._loaded[0].isoformat(),
-                              bin(self._loaded[1]).count("1"))
+                              bin(self._loaded[1]).count("1"),
+                              "all" if self._loaded[2] == self._archive.PORT_ALL
+                              else bin(self._loaded[2]).count("1"))
                            if self._loaded else None),
                 # what the slow path is doing, because that is the question
                 # anyone looking at this endpoint is actually asking
@@ -493,6 +543,57 @@ def lonlat_to_cell(info, lon, lat):
     pixel = info["pixel_m"]
     return (int(round((x_m - minx) / pixel)),
             int(round((maxy - y_m) / pixel)))
+
+
+#: How far a radar is taken to see, in km.  The .wrk grids do not record their
+#: own range, and 250 km is what the DMRL network is quoted at; a radar further
+#: than this from the line contributes nothing to a section along it.
+RADAR_RANGE_KM = float(os.environ.get("XSECTION_RADAR_RANGE_KM", "250"))
+
+
+def _point_to_segment_km(px, py, x1, y1, x2, y2):
+    """Distance from a point to a LINE SEGMENT, in the units given.
+
+    The segment, not the infinite line through it: a radar off the end of a
+    short line is as far away as it is, and measuring to the line would drag
+    in radars hundreds of kilometres past where anyone drew.
+    """
+    dx, dy = x2 - x1, y2 - y1
+    span = dx * dx + dy * dy
+    if span == 0:
+        t = 0.0
+    else:
+        t = ((px - x1) * dx + (py - y1) * dy) / span
+        t = max(0.0, min(1.0, t))          # clamp onto the segment
+    nx, ny = x1 + t * dx, y1 + t * dy
+    return ((px - nx) ** 2 + (py - ny) ** 2) ** 0.5
+
+
+def radars_for_line(info, lon1, lat1, lon2, lat2, range_km=None):
+    """Which radars in the frame can see any part of the line.
+
+    Returns every radar with its distance to the line, nearest first, and a
+    `within` flag - the caller wants the whole list to show, not just the
+    survivors, because choosing between two overlapping radars is half the
+    reason for having it.
+    """
+    if range_km is None:
+        range_km = RADAR_RANGE_KM
+    to_grid = _transformer(info["proj4"])
+    x1, y1 = to_grid.transform(lon1, lat1)
+    x2, y2 = to_grid.transform(lon2, lat2)
+
+    out = []
+    for radar in info["radars"]:
+        rx, ry = to_grid.transform(radar["lon"], radar["lat"])
+        km = _point_to_segment_km(rx, ry, x1, y1, x2, y2) / 1000.0
+        out.append({"port": radar["port"],
+                    "name": (radar["name"] or "").strip(),
+                    "lon": radar["lon"], "lat": radar["lat"],
+                    "distance_km": round(km, 1),
+                    "within": km <= range_km})
+    out.sort(key=lambda r: r["distance_km"])
+    return out
 
 
 def cell_to_lonlat(info, x, y):

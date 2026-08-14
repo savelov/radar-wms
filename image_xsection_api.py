@@ -223,13 +223,27 @@ def xsection(environ, start_response, params):
     smooth = str(params.get("smooth", "1")).lower() not in ("0", "false", "no")
     when = _time(params)
 
+    # Which radars build the mosaic.  Left out, the engine takes every radar
+    # within range of the line; given, it is the page saying which of the ones
+    # it was offered to keep - the way to choose between two that overlap.
+    ports = params.get("ports")
+    if isinstance(ports, str):
+        ports = [p for p in ports.replace(",", " ").split() if p]
+    if ports is not None:
+        try:
+            ports = [int(p) for p in ports]
+        except (TypeError, ValueError):
+            raise EngineError("ports must be a list of port numbers, not %r"
+                              % params.get("ports"))
+
     if fmt not in ("json", "png"):
         raise EngineError("format must be json or png, not %r" % fmt)
 
     section, meta = engine().cross_section(lon1, lat1, lon2, lat2,
                                            family=family, when=when,
                                            smooth=smooth,
-                                           values=(fmt == "json"))
+                                           values=(fmt == "json"),
+                                           ports=ports)
 
     if section.length_km > MAX_LENGTH_KM:
         raise EngineError("that line is %.0f km; %.0f km is the most this "
@@ -277,6 +291,11 @@ def xsection(environ, start_response, params):
         # section is empty because nothing looked, not because nothing was there
         "floor_km": [round(v, 3) for v in section.floor_km],
         "legend": _legend_rows(meta["legend"]),
+        # every radar in the frame with its distance to the line, nearest
+        # first, and whether it went into this mosaic.  The page shows the lot
+        # so that a radar just outside the range can still be switched on.
+        "radars": meta["radars_near"],
+        "ports_used": meta["ports_used"],
         "lon1": lon1, "lat1": lat1, "lon2": lon2, "lat2": lat2,
         "cells": [x1, y1, x2, y2],
         # where the cut actually landed, which is the centre of a 4 km cell

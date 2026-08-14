@@ -106,6 +106,18 @@ select { width:100%; }
 .warn { font-family:var(--mono); font-size:.6rem; line-height:1.5;
         color:var(--accent2); margin-top:6px; }
 button.off { opacity:.35; cursor:not-allowed; }
+aside h2 .sub { text-transform:none; letter-spacing:0; color:var(--accent2);
+                font-weight:400; }
+.radars { font-family:var(--mono); font-size:.66rem;
+          background:#0b1219; border:1px solid var(--border); border-radius:4px;
+          padding:5px 7px; max-height:190px; overflow-y:auto; color:var(--muted); }
+.radars label { display:flex; align-items:center; gap:6px; padding:2px 0;
+                cursor:pointer; white-space:nowrap; }
+.radars input { accent-color:var(--accent); margin:0; flex:none; }
+.radars .nm { color:var(--text); overflow:hidden; text-overflow:ellipsis; }
+.radars .km { margin-left:auto; color:var(--muted); font-size:.6rem; }
+.radars label.far .nm { color:var(--muted); }
+.radars label.far .km { color:var(--accent2); }
 
 .right { flex:1; display:flex; flex-direction:column; min-width:0; }
 #map { flex:1; min-height:120px; background:#0b1219; position:relative; }
@@ -222,6 +234,13 @@ button.off { opacity:.35; cursor:not-allowed; }
     </section>
 
     <section>
+      <h2>Radars <span class="sub" id="radar-hint"></span></h2>
+      <div class="radars" id="radars">—</div>
+      <button class="wide" id="btn-radars-auto" onclick="resetRadars()"
+              style="margin-top:7px" disabled>Back to automatic</button>
+    </section>
+
+    <section>
       <h2>Frame</h2>
       <div class="info" id="frame-info">—</div>
     </section>
@@ -298,6 +317,13 @@ let bands    = [];         // legend rows parsed into numeric ranges
 let pts      = [];         // the drawn line, [lon,lat] pairs
 let mode     = 'draw';
 
+// Which radars build the mosaic.  null means "let the API choose" - every
+// radar within range of the line - and it goes back to null whenever the line
+// or the frame changes, because a choice made for one line means nothing for
+// the next.  A list means the user has picked, which is what to do where two
+// radars overlap and the merge would otherwise choose for them.
+let ports    = null;
+
 /* ── the map ─────────────────────────────────────────────────────────── */
 
 const lineSource  = new ol.source.Vector();
@@ -365,6 +391,7 @@ map.on('click', e => {
   const ll = ol.proj.toLonLat(e.coordinate);
   if (pts.length >= 2) pts = [];
   pts.push([+ll[0].toFixed(4), +ll[1].toFixed(4)]);
+  ports = null;             // a choice of radars belonged to the old line
   drawLine();
   if (pts.length === 2) cut();
 });
@@ -568,6 +595,53 @@ document.getElementById('sect').addEventListener('mousemove', e => {
 });
 document.getElementById('sect').addEventListener('mouseleave',
   () => document.getElementById('readout').textContent = '');
+
+/* ── which radars feed the section ───────────────────────────────────── */
+
+/* Every radar in the frame, nearest to the line first, with the ones actually
+   used ticked.  The ones out of range are listed too rather than hidden: a
+   radar at 260 km still sees the near end of a long line, and the whole point
+   of showing this is to be able to change the answer. */
+function renderRadars(sect) {
+  const box = document.getElementById('radars');
+  const hint = document.getElementById('radar-hint');
+  const list = (sect && sect.radars) || [];
+  document.getElementById('btn-radars-auto').disabled = (ports === null);
+
+  if (!list.length) { box.innerHTML = '&mdash;'; hint.textContent = ''; return; }
+
+  const used = new Set(sect.ports_used || []);
+  hint.textContent = ports === null
+    ? '(' + used.size + ' of ' + list.length + ', automatic)'
+    : '(' + used.size + ' of ' + list.length + ', chosen)';
+
+  box.innerHTML = list.map(r =>
+    '<label class="' + (r.within ? '' : 'far') + '" title="' +
+      escapeHtml(r.name) + ' — ' + r.distance_km + ' km from the line' +
+      (r.within ? '' : ', outside the usual 250 km range') + '">' +
+      '<input type="checkbox" value="' + r.port + '"' +
+        (used.has(r.port) ? ' checked' : '') + ' onchange="onRadarToggle()">' +
+      '<span class="nm">' + escapeHtml(r.name || ('port ' + r.port)) + '</span>' +
+      '<span class="km">' + r.distance_km.toFixed(0) + ' km</span>' +
+    '</label>').join('');
+}
+
+function onRadarToggle() {
+  ports = [...document.querySelectorAll('#radars input:checked')]
+            .map(i => +i.value);
+  if (!ports.length) {
+    toast('a section needs at least one radar', true);
+    ports = null;
+    renderRadars(section);
+    return;
+  }
+  cut();
+}
+
+function resetRadars() {
+  ports = null;
+  cut();
+}
 
 /* ── the radar overlay ───────────────────────────────────────────────── */
 
@@ -837,6 +911,7 @@ function pickFamily(f) {
 }
 
 function onTime() {
+  ports = null;           // and to the old frame
   syncWmsTime();          // move the radar overlay with the picker
   api('/info?time=' + encodeURIComponent(document.getElementById('time').value))
     .then(showFrame).catch(e => toast(e.message, true));
@@ -853,7 +928,9 @@ async function cut() {
       family: family,
       time: document.getElementById('time').value || 'latest'
     });
+    if (ports !== null) q.set('ports', ports.join(','));
     section = await api('/xsection?' + q);
+    renderRadars(section);
     bands = parseBands(section.legend);
     renderLegend(section.legend);
 
@@ -878,6 +955,7 @@ async function cut() {
   } catch (e) {
     section = null;
     drawSection();
+    renderRadars(null);
     document.getElementById('sect-title').textContent = '—';
     document.getElementById('sect-meta').textContent = '';
     toast(e.message, true);
