@@ -318,7 +318,7 @@ class Engine(object):
         return after if (after.timestamp - when) < (when - before.timestamp) \
             else before
 
-    def _load(self, frame, product, only=None):
+    def _load(self, frame, product, only=None, passports=False):
         """Mosaic `product` for `frame`, unless it is already up.  Locked.
 
         `only` narrows the read to one family, which is three times cheaper
@@ -332,9 +332,7 @@ class Engine(object):
         a frame that was never read pays, and pays narrowly.
         """
         pyimage = self._pyimage
-        want = (self._archive.all_mask if only is None
-                else self._archive.family_mask(only)
-                | (1 << self._archive._lib.map_index(pyimage.PRODUCTS[product])))
+        want = self._archive.mask_for(product, only, passports)
 
         if (self._loaded and self._loaded[0] == frame.timestamp
                 and not (want & ~self._loaded[1])):
@@ -345,7 +343,7 @@ class Engine(object):
             return frame
 
         try:
-            frame.load(product, only=only)
+            frame.load(product, only=only, passports=passports)
         except pyimage.ImageError as error:
             self._loaded = None
             raise EngineError(str(error))
@@ -356,10 +354,14 @@ class Engine(object):
         """Grid geometry, projection and the radars of one frame."""
         with self._lock:
             frame = self._frame_for(when)
-            # everything, deliberately: this reports the level count of every
-            # family and there is no counting them without reading them.  It
-            # runs once per page load, where a cut runs on every drawn line.
-            self._load(frame, product, only=None)
+            # Passports for everything but the one product this needs a grid
+            # for.  The level counts and the geometry come out of the eight
+            # header bytes of each product, so mosaicking all forty-four to
+            # report them was paying ten times over for numbers that were
+            # already in the headers.  The other products come back with empty
+            # grids, which is exactly why _load() keys the cache on what was
+            # mosaicked - a cut cannot mistake a passport for data.
+            self._load(frame, product, passports=True)
             info = dict(frame.info)
             # `families` is what can be cut - two levels or more.  `levels`
             # counts every family, including the ones that cannot, so a caller
@@ -367,8 +369,15 @@ class Engine(object):
             # dropping the button.  The newest frame is often part written:
             # the pipeline lands dbz before vel, and a family that is missing
             # for one cycle and back the next reads as a bug when it is not.
-            info["families"] = frame.families()
-            info["levels"] = {fam: frame.levels(fam) for fam in FAMILY_PRODUCT}
+            # present=True, because this read the passports and mosaicked one
+            # product: every level is there and none but that one is cuttable.
+            # The question the page asks is what the frame contains, and
+            # answering it with "what could be cut out of the composite as it
+            # stands" would report a frame full of levels as empty.
+            info["levels"] = {fam: frame.levels(fam, present=True)
+                              for fam in FAMILY_PRODUCT}
+            info["families"] = [fam for fam in FAMILY_PRODUCT
+                                if info["levels"][fam] >= 2]
             info["frame_time"] = frame.timestamp
             return info
 
