@@ -736,8 +736,7 @@ async function boot() {
     setStatus(h.ok, h.ok ? h.frames + ' frames' : (h.error || 'no archive'));
 
     const info = await api('/info');
-    showFrame(info);
-    renderFamilies(info.families, info.levels);
+    showFrame(info);          // draws the family buttons too
 
     const fr = await api('/frames?limit=200');
     // This page and image_xsection_api.py are deployed as two files and can
@@ -790,6 +789,13 @@ function showFrame(info) {
     '<b>Radars</b> ' + info.radars.length + '<br>' +
     Object.entries(info.levels).map(([k, v]) =>
       '<b>' + k + '</b> ' + v + ' levels').join('<br>');
+
+  // The buttons belong to the frame as much as the panel above does.  They
+  // used to be drawn once, at boot, and then left: the newest frame is often
+  // part written - the pipeline lands reflectivity before velocity - so a
+  // page opened at the wrong moment disabled Velocity and kept it disabled
+  // for every frame after, while the panel beside it read "vel 10 levels".
+  renderFamilies(info.families, info.levels);
 
   radarSource.clear();
   info.radars.forEach(r => {
