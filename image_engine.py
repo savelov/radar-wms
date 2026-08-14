@@ -37,15 +37,28 @@ module lets it happen: a worker that cannot open the archive fails to start,
 which mod_wsgi retries, rather than dying mid-answer.
 """
 
+import bisect
 import datetime
 import os
 import sys
 import threading
 
-#: seconds before the archive directory is read again.  New frames land every
-#: ten minutes; a reopen costs about a third of a second and throws away the
-#: loaded frame, so this trades a little staleness for not paying that on
-#: requests that would not have seen a new frame anyway.
+#: distinguishes "not looked yet" from "looked, and there is none"
+_UNSET = object()
+
+#: How often to consider re-reading the archive directory.
+#:
+#: Considering is cheap and doing it is not.  Reopening an Archive re-runs the
+#: C directory scan, which walks one file per radar per frame - on the
+#: production archive, 38 radars over 179000 frames, that is nearly seven
+#: million names and takes about fourteen seconds.  Every reopen also throws
+#: away the mosaic in the C globals, so the next cut pays its seven seconds
+#: again on top.
+#:
+#: So the timer below only decides when to LOOK.  _archive_changed() then says
+#: whether anything actually landed, from the mtimes of the port directories,
+#: and the expensive part happens only when it did - which is once per pipeline
+#: cycle rather than once a minute.
 RESCAN_SECONDS = int(os.environ.get("XSECTION_RESCAN_SECONDS", "60"))
 
 #: Hours to take off an archive timestamp to get UTC.
@@ -153,6 +166,10 @@ class Engine(object):
         self._rescan = rescan_seconds
         self._home = _find_image_home()
         self._paths = os.path.abspath(paths or os.path.join(self._home, "paths"))
+        self._map = _UNSET      # the MAP directory, parsed once on first use
+        self._stamp = None      # archive mtime fingerprint at the last open
+        self._sorted = []       # frames, oldest first
+        self._times = []        # their timestamps, for bisect
         #: (timestamp, product) of what the composite currently holds, so a
         #: second cut through one frame does not pay the load again.  This is
         #: the whole reason the engine is kept warm: the load is about a
@@ -170,6 +187,52 @@ class Engine(object):
             self._pyimage = pyimage
         return self._pyimage
 
+    def _mapdir(self):
+        """The archive directory, from the MAP line of the path file.
+
+        Resolved against the checkout, the way the engine resolves it.  None
+        when the file cannot be read or names no MAP - the caller then falls
+        back to the timer alone.
+        """
+        if self._map is not _UNSET:
+            return self._map
+        self._map = None
+        try:
+            with open(self._paths, encoding="utf-8", errors="replace") as handle:
+                for line in handle:
+                    parts = line.split(None, 1)
+                    if len(parts) == 2 and parts[0].upper() == "MAP":
+                        self._map = os.path.join(self._home, parts[1].strip())
+                        break
+        except OSError:
+            pass
+        return self._map
+
+    def _archive_stamp(self):
+        """A cheap fingerprint of the archive's contents.
+
+        The newest mtime of the archive directory and the port directories
+        under it.  A frame arriving writes <map>/port<N>/<time>.wrk, and a new
+        name in a directory moves that directory's mtime - so this changes
+        exactly when there is something new to find, at the cost of one stat
+        per radar instead of a walk over every file of every frame.
+
+        None when it cannot be determined, which the caller reads as "assume
+        stale" rather than "assume fresh".
+        """
+        mapdir = self._mapdir()
+        if not mapdir:
+            return None
+        try:
+            newest = os.stat(mapdir).st_mtime
+            with os.scandir(mapdir) as entries:
+                for entry in entries:
+                    if entry.is_dir():
+                        newest = max(newest, entry.stat().st_mtime)
+        except OSError:
+            return None
+        return newest
+
     def _open(self):
         """Open the archive.  Caller holds the lock."""
         pyimage = self._import()
@@ -177,26 +240,44 @@ class Engine(object):
             self._archive.close()
             self._archive = None
             self._loaded = None
+        stamp = self._archive_stamp()          # before the scan, never after
         try:
             self._archive = pyimage.Archive(self._paths, workdir=self._home)
         except pyimage.ImageError as error:
             raise EngineError(str(error))
         self._opened_at = datetime.datetime.now()
+        self._stamp = stamp
+
+        # Sorted once here so that finding a frame is a bisect rather than a
+        # walk.  min() over the frame list costs nothing at fifteen thousand
+        # frames and about forty milliseconds at a hundred and eighty, on
+        # every single request.
+        self._sorted = sorted(self._archive.frames, key=lambda f: f.timestamp)
+        self._times = [f.timestamp for f in self._sorted]
         return self._archive
 
     def _current(self):
-        """The archive, reopened if the directory listing has gone stale.
+        """The archive, re-read only when the directory says there is a point.
 
-        Caller holds the lock.  Reopening is how new frames are noticed:
-        read_dir() runs once per Archive and the archive is written to every
-        ten minutes by the pipeline.
+        Caller holds the lock.  read_dir() runs once per Archive, so reopening
+        is the only way to notice new frames - but it is expensive enough on a
+        large archive that doing it on a timer alone means a fourteen second
+        request once a minute.  The timer decides when to look; the mtimes
+        decide whether to pay.
         """
         if self._archive is None:
             return self._open()
+
         age = (datetime.datetime.now() - self._opened_at).total_seconds()
-        if age >= self._rescan:
-            return self._open()
-        return self._archive
+        if age < self._rescan:
+            return self._archive
+
+        stamp = self._archive_stamp()
+        if stamp is not None and stamp == self._stamp:
+            # nothing new landed; charge the timer, not the archive
+            self._opened_at = datetime.datetime.now()
+            return self._archive
+        return self._open()
 
     def close(self):
         with self._lock:
@@ -210,19 +291,32 @@ class Engine(object):
     def frames(self, limit=None):
         """Archive timestamps, newest first."""
         with self._lock:
-            archive = self._current()
-            stamps = [f.timestamp for f in archive.frames]
-        stamps.sort(reverse=True)
-        return stamps[:limit] if limit else stamps
+            self._current()
+            # Sorted once at open, so this takes the tail and reverses only
+            # what was asked for.  Reversing the whole list first would copy a
+            # hundred and eighty thousand timestamps to hand back two hundred.
+            times = self._times[-limit:] if limit else list(self._times)
+        times.reverse()
+        return times
 
     def _frame_for(self, when):
         """The frame nearest `when`, or the newest.  Caller holds the lock."""
-        archive = self._current()
-        if not archive.frames:
+        self._current()
+        if not self._sorted:
             raise EngineError("the archive is empty")
         if when is None:
-            return max(archive.frames, key=lambda f: f.timestamp)
-        return archive.nearest(when)
+            return self._sorted[-1]
+
+        # bisect, then look at the two neighbours: the nearest frame is one of
+        # them, and this is O(log n) where nearest() was O(n)
+        i = bisect.bisect_left(self._times, when)
+        if i == 0:
+            return self._sorted[0]
+        if i >= len(self._sorted):
+            return self._sorted[-1]
+        before, after = self._sorted[i - 1], self._sorted[i]
+        return after if (after.timestamp - when) < (when - before.timestamp) \
+            else before
 
     def _load(self, frame, product):
         """Mosaic `product` for `frame`, unless it is already up.  Locked."""
@@ -314,18 +408,24 @@ class Engine(object):
                 archive = self._current()
             except EngineError as error:
                 return {"ok": False, "error": str(error), "pid": os.getpid()}
-            stamps = [f.timestamp for f in archive.frames]
             return {
                 "ok": True,
                 "pid": os.getpid(),
                 "image_home": self._home,
                 "paths": self._paths,
-                "frames": len(stamps),
-                "newest": max(stamps).isoformat() + "Z" if stamps else None,
-                "oldest": min(stamps).isoformat() + "Z" if stamps else None,
+                # sorted at open, so these are the ends of a list rather than
+                # a max() and a min() over every frame on every health check
+                "frames": len(self._times),
+                "newest": self._times[-1].isoformat() + "Z" if self._times else None,
+                "oldest": self._times[0].isoformat() + "Z" if self._times else None,
                 "loaded": ("%s %s" % (self._loaded[0].isoformat(),
                                       self._loaded[1])
                            if self._loaded else None),
+                # what the slow path is doing, because that is the question
+                # anyone looking at this endpoint is actually asking
+                "opened_at": self._opened_at.isoformat() if self._opened_at else None,
+                "rescan_seconds": self._rescan,
+                "archive_dir": self._mapdir(),
             }
 
 

@@ -28,3 +28,23 @@ sys.path.insert(0, os.path.dirname(__file__))
 # os.environ.setdefault("IMAGE_HOME", "/home/eugene/image")
 
 from image_xsection_api import application  # noqa: E402,F401
+
+# Open the archive now, if this file is being imported at process start rather
+# than by the first request.  Reading the directory of a large archive takes
+# real time - fourteen seconds for 179000 frames over 38 radars - and it is
+# much better spent while mod_wsgi is starting the worker than while somebody
+# is waiting for a section.  Pair it with, in the Apache config:
+#
+#     WSGIImportScript /path/to/image_xsection_api.wsgi \
+#         process-group=xsection application-group=%{GLOBAL}
+#
+# Failure is deliberately not fatal: the engine opens lazily too, so a worker
+# whose archive is briefly unreadable still starts and answers 503 until it
+# can, rather than failing to import for the life of the process.
+try:
+    from image_engine import engine
+
+    engine().frames(limit=1)
+except Exception as _error:                                   # noqa: BLE001
+    sys.stderr.write("image_xsection: archive not ready at import (%s); "
+                     "the first request will open it\n" % _error)
