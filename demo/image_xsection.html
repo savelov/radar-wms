@@ -365,6 +365,10 @@ let mode     = 'draw';
 // radars overlap and the merge would otherwise choose for them.
 let ports    = null;
 
+// true once a time has been chosen - by the person or by a ?time= link.
+// Until then the page picks the newest frame the overlay can draw.
+let userPickedTime = false;
+
 /* ── the map ─────────────────────────────────────────────────────────── */
 
 const lineSource  = new ol.source.Vector();
@@ -770,6 +774,7 @@ async function loadWmsLayers() {
                     ...PREFERRED_LAYERS].find(n => n && wmsLayers.has(n));
     sel.value = wanted || '';
     markFramesWithImagery();
+    pickDefaultFrame();        // the frames may have landed before the caps
     if (sel.value) onWmsLayer();
   } catch (e) {
     sel.innerHTML = '<option value="">— unavailable —</option>';
@@ -799,6 +804,7 @@ function onWmsLayer() {
     rememberLayer(layer);
   }
   markFramesWithImagery();
+  pickDefaultFrame();          // a different layer has a different last frame
   syncWmsTime();
 }
 
@@ -892,8 +898,14 @@ async function boot() {
       (i === 0 ? '  (latest)' : '') + '</option>').join('');
 
     const wanted = QUERY.get('time');
-    if (wanted && frames.some(f => f.archive === wanted)) sel.value = wanted;
+    if (wanted && frames.some(f => f.archive === wanted)) {
+      sel.value = wanted;
+      userPickedTime = true;   // a link that names a time has already chosen
+    }
     markFramesWithImagery();   // the caps may have landed before the frames
+    // The frame list and the capabilities land in either order, so the pick
+    // is attempted from both ends; whichever is second finds the other ready.
+    pickDefaultFrame();
     syncWmsTime();
 
     if (DEEP_LINK.length === 4 && DEEP_LINK.every(Number.isFinite)) {
@@ -975,12 +987,41 @@ function pickFamily(f) {
 }
 
 function onTime() {
+  userPickedTime = true;  // from here on the page stops choosing for them
   drawerDoneIfNarrow();
-  ports = null;           // and to the old frame
+  applyTime();
+}
+
+function applyTime() {
+  ports = null;           // a choice of radars belonged to the old frame
   syncWmsTime();          // move the radar overlay with the picker
   api('/info?time=' + encodeURIComponent(document.getElementById('time').value))
     .then(showFrame).catch(e => toast(e.message, true));
   if (pts.length === 2) cut();
+}
+
+/* Open on the newest frame the overlay can actually draw.
+ *
+ * The archive runs ahead of the WMS - the pipeline registers a GeoTIFF some
+ * minutes after the frame lands, and the newest frame is often part written
+ * besides - so the newest archive frame is the one least likely to have a
+ * radar image behind it.  Opening there means opening on a section floating
+ * over bare geography, which is exactly what this page is not for.
+ *
+ * Only until somebody chooses.  After that the time is theirs, and an
+ * overlay that cannot draw is their business rather than a thing to correct.
+ * `frames` is newest first, so the first match is the newest match.
+ */
+function pickDefaultFrame() {
+  if (userPickedTime || !frames.length) return;
+  const times = wmsLayers.get(document.getElementById('wms-layer').value);
+  if (!times || !times.size) return;      // no overlay to match against
+  const best = frames.find(f => times.has(f.utc));
+  if (!best) return;                      // none of them: keep the newest
+  const sel = document.getElementById('time');
+  if (sel.value === best.archive) return;
+  sel.value = best.archive;
+  applyTime();
 }
 
 async function cut() {
