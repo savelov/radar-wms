@@ -69,7 +69,19 @@ RESCAN_SECONDS = int(os.environ.get("XSECTION_RESCAN_SECONDS", "60"))
 #: their say on the slow clock instead.
 REFILL_SECONDS = int(os.environ.get("XSECTION_REFILL_SECONDS", "600"))
 
-#: Read only this many days back from the archive, or 0 for all of it.
+#: Read only this many days back from the archive.  0 reads all of it.
+#:
+#: Thirty, because the archive is years deep and this API is asked about the
+#: last day or two.  Thirty still covers "what happened last Tuesday", which
+#: is the far end of what anyone cuts a section through, and it keeps the
+#: frame list a few thousand entries rather than a hundred and eighty
+#: thousand - which is a couple of seconds off every reopen and about 25 MB
+#: off the worker.  Below a month it stops helping (see below), so there is
+#: nothing to gain by going lower and history to lose.
+#:
+#: XSECTION_ARCHIVE_DAYS=0 restores the whole archive.  generate_image_archive
+#: does not come through here and is unaffected: it reads the archive whole,
+#: which is what backfilling old frames needs.
 #:
 #: read_dir() walks one file per radar per frame, and on an archive years deep
 #: that is millions of names for a page that only ever asks about the last
@@ -82,7 +94,7 @@ REFILL_SECONDS = int(os.environ.get("XSECTION_REFILL_SECONDS", "600"))
 #: is all that is left.  The cure for the floor is fewer files - moving old
 #: frames out of the archive directory rather than asking the engine to skip
 #: them.
-ARCHIVE_DAYS = int(os.environ.get("XSECTION_ARCHIVE_DAYS", "0"))
+ARCHIVE_DAYS = int(os.environ.get("XSECTION_ARCHIVE_DAYS", "30"))
 
 #: Hours to take off an archive timestamp to get UTC.
 #:
