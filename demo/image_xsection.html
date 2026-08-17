@@ -770,8 +770,16 @@ async function loadWmsLayers() {
       [...wmsLayers.keys()].map(n =>
         '<option value="' + n + '">' + escapeHtml(n) + '</option>').join('');
 
-    const wanted = [QUERY.get('layer'), rememberedLayer(),
-                    ...PREFERRED_LAYERS].find(n => n && wmsLayers.has(n));
+    // Prefer a layer that can be TIMED.  Some of them advertise no time
+    // dimension at all - the gimet_* set here - and one of those as the
+    // default is indistinguishable from a broken page: no frame can be marked
+    // as having imagery, so the picker looks like an archive with no tiles
+    // anywhere.  ?layer= still forces the issue, and so does choosing one by
+    // hand; this only decides what to open on.
+    const timed = n => n && wmsLayers.has(n) && wmsLayers.get(n).size;
+    const known = n => n && wmsLayers.has(n);
+    const order = [QUERY.get('layer'), rememberedLayer(), ...PREFERRED_LAYERS];
+    const wanted = order.find(timed) || order.find(known);
     sel.value = wanted || '';
     markFramesWithImagery();
     pickDefaultFrame();        // the frames may have landed before the caps
@@ -784,7 +792,11 @@ async function loadWmsLayers() {
 
 /* Put a dot on the frames the chosen layer can actually draw.  With fifteen
    of two hundred, knowing which before clicking is the difference between a
-   picker and a guessing game. */
+   picker and a guessing game.
+
+   A layer with no time dimension gets no dots, because there is nothing to
+   match against - not because nothing is there.  syncWmsTime() says which of
+   those two it is, or the empty picker is read as a broken archive. */
 function markFramesWithImagery() {
   const times = wmsLayers.get(document.getElementById('wms-layer').value);
   const sel = document.getElementById('time');
@@ -831,6 +843,18 @@ function syncWmsTime() {
   if (!layer || !frame) {
     wmsLayer.setVisible(false);
     note.textContent = '';
+    return;
+  }
+
+  // A layer with no time dimension cannot be asked for a moment, so it is
+  // drawn untimed and said to be.  Without this it looked like a fault: no
+  // frame could be marked as having imagery, which reads as "the archive has
+  // no tiles" rather than "this layer has no clock".
+  if (!times || !times.size) {
+    wmsSource.updateParams({ TIME: undefined });
+    wmsLayer.setVisible(true);
+    note.textContent = 'this layer advertises no time dimension — shown as it '
+                     + 'comes, not matched to the frame';
     return;
   }
 
