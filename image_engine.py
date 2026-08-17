@@ -69,6 +69,21 @@ RESCAN_SECONDS = int(os.environ.get("XSECTION_RESCAN_SECONDS", "60"))
 #: their say on the slow clock instead.
 REFILL_SECONDS = int(os.environ.get("XSECTION_REFILL_SECONDS", "600"))
 
+#: Read only this many days back from the archive, or 0 for all of it.
+#:
+#: read_dir() walks one file per radar per frame, and on an archive years deep
+#: that is millions of names for a page that only ever asks about the last
+#: day or two.  A cutoff halves it - the parse, the per radar sort and the
+#: merge all shrink to what is kept.
+#:
+#: It does not halve it twice.  The other half is the readdir() of every entry
+#: in the directory, wanted or not, and a directory cannot be asked for part
+#: of itself; below about a month the cutoff stops helping because that floor
+#: is all that is left.  The cure for the floor is fewer files - moving old
+#: frames out of the archive directory rather than asking the engine to skip
+#: them.
+ARCHIVE_DAYS = int(os.environ.get("XSECTION_ARCHIVE_DAYS", "0"))
+
 #: Hours to take off an archive timestamp to get UTC.
 #:
 #: The .wrk headers carry local time - Moscow, so +3 - and carry no zone with
@@ -319,8 +334,12 @@ class Engine(object):
         # go with it rather than outliving the read they came from.
         self._radars = None
         stamp = self._archive_stamp()          # before the scan, never after
+        # recomputed on every open, so the window follows the clock
+        since = (datetime.datetime.now() - datetime.timedelta(days=ARCHIVE_DAYS)
+                 if ARCHIVE_DAYS > 0 else None)
         try:
-            self._archive = pyimage.Archive(self._paths, workdir=self._home)
+            self._archive = pyimage.Archive(self._paths, workdir=self._home,
+                                            since=since)
         except pyimage.ImageError as error:
             raise EngineError(str(error))
         self._opened_at = datetime.datetime.now()
@@ -628,6 +647,14 @@ class Engine(object):
                 "rss_mb": _rss_mb(),
                 "opened_at": self._opened_at.isoformat() if self._opened_at else None,
                 "rescan_seconds": self._rescan,
+                # "all" when no window was asked for; "N (ignored: nothing
+                # that recent)" when one was and the archive had nothing in
+                # it - which is how a stalled pipeline shows up here instead
+                # of as an unexplained slow open.
+                "archive_days": (
+                    "all" if not ARCHIVE_DAYS
+                    else ARCHIVE_DAYS if getattr(archive, "windowed", True)
+                    else "%d (ignored: no frames that recent)" % ARCHIVE_DAYS),
                 "archive_dir": self._mapdir(),
             }
 
