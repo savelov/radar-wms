@@ -132,7 +132,16 @@ IMAGE_HOME_CANDIDATES = [os.environ.get("IMAGE_HOME"),
 
 
 class EngineError(Exception):
-    """Something the caller can be told about without a traceback."""
+    """Something the caller can be told about without a traceback.
+
+    `detail` carries whatever would help the caller act on it - the radar list
+    behind a "no radar near that line", so the page can show how far away the
+    nearest one is instead of blanking and leaving the reader to guess.
+    """
+
+    def __init__(self, message, detail=None):
+        Exception.__init__(self, message)
+        self.detail = detail or {}
 
 
 def to_utc(stamp):
@@ -590,12 +599,18 @@ class Engine(object):
                 radar["used"] = radar["port"] in ports
 
             if not ports:
+                # The radar list goes with the refusal.  A blank section and a
+                # message that has scrolled away is how "no radar reaches
+                # there" gets read as "the section is broken" - so the caller
+                # gets the distances and can see for itself, or tick a distant
+                # radar and find out what it looks like.
                 raise EngineError(
                     "no radar within %.0f km of that line - the nearest is %s "
                     "at %.0f km"
                     % (range_km or RADAR_RANGE_KM,
                        near[0]["name"] if near else "none",
-                       near[0]["distance_km"] if near else 0))
+                       near[0]["distance_km"] if near else 0),
+                    {"radars": near, "ports_used": []})
 
             # and now the real load, with only those radars opened
             self._load(frame, product, only=family, ports=ports)

@@ -90,8 +90,13 @@ def _json(start_response, payload, status="200 OK", cache=None):
     return [body]
 
 
-def _error(start_response, message, status="400 Bad Request"):
-    return _json(start_response, {"error": message}, status)
+def _error(start_response, message, status="400 Bad Request", detail=None):
+    payload = {"error": message}
+    if detail:
+        # whatever the engine attached to help the caller act on the refusal -
+        # the radar distances behind "no radar near that line", above all
+        payload.update(detail)
+    return _json(start_response, payload, status)
 
 
 def _png(start_response, blob, cache=None):
@@ -341,7 +346,8 @@ def application(environ, start_response):
     except EngineError as error:
         # the caller asked for something the archive cannot answer: a family
         # the frame has no levels of, a time outside it, a line of no length
-        return _error(start_response, str(error))
+        return _error(start_response, str(error),
+                      detail=getattr(error, "detail", None))
     except Exception:
         # Everything else is this code's fault, and the traceback goes to the
         # Apache error log rather than to whoever is holding the request.

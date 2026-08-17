@@ -887,7 +887,14 @@ function selectedFrame() {
 async function api(path) {
   const res  = await fetch(API + path);
   const data = await res.json();
-  if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+  if (!res.ok || data.error) {
+    // Carry the body along: a refusal explains itself with the radar
+    // distances that caused it, and dropping them here is what left a blank
+    // panel and a five second toast as the whole account of what happened.
+    const err = new Error(data.error || ('HTTP ' + res.status));
+    err.detail = data;
+    throw err;
+  }
   return data;
 }
 
@@ -1086,9 +1093,12 @@ async function cut() {
   } catch (e) {
     section = null;
     drawSection();
-    renderRadars(null);
-    document.getElementById('sect-title').textContent = '—';
-    document.getElementById('sect-meta').textContent = '';
+    // A refusal that came with the radar list can still show it: seeing the
+    // nearest radar at 378 km is the answer to "why is there no section",
+    // and it stays on screen instead of leaving with the toast.
+    renderRadars(e.detail && e.detail.radars ? e.detail : null);
+    document.getElementById('sect-title').textContent = 'no section';
+    document.getElementById('sect-meta').textContent = e.message;
     toast(e.message, true);
   } finally {
     veil(false);
