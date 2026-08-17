@@ -1013,6 +1013,19 @@ function renderFamilies(list, levels) {
    the reason in the tooltip.  /info's counts stay the fallback: before a line
    is drawn there are no radars in play to narrow to. */
 function narrowFamilies(here) {
+  // Never disable all of them.  An empty list is a dead end: every quantity
+  // greyed out, including the one that worked a moment ago, and no way back
+  // except reloading the page.  When there is nothing to offer, leave the
+  // buttons as /info drew them and let the message carry the news - the reader
+  // can still move, which matters more than the buttons being strictly right.
+  if (!here || !here.length) {
+    for (const b of document.querySelectorAll('#families button')) {
+      b.disabled = false;
+      b.classList.remove('off');
+      b.title = 'the radars along this line carry nothing - try another line';
+    }
+    return;
+  }
   for (const b of document.querySelectorAll('#families button')) {
     const ok = here.includes(b.dataset.f);
     b.disabled = !ok;

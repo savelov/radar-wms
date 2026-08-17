@@ -526,8 +526,10 @@ class Engine(object):
                               for fam in FAMILY_PRODUCT}
             info["families"] = [fam for fam in FAMILY_PRODUCT
                                 if info["levels"][fam] >= 2]
-            # this read had every port open, so it knows where the radars are
-            self._radars = (frame.timestamp, info["radars"])
+            # this read had every port open, so it knows both where the radars
+            # are and which families each of them carried
+            self._radars = (frame.timestamp, info["radars"],
+                            self._archive.family_ports())
             info["frame_time"] = frame.timestamp
             return info
 
@@ -581,12 +583,19 @@ class Engine(object):
             # so nothing was ever a cache hit and every cut paid twice.  The
             # positions are per frame and do not change within it, so they are
             # remembered instead, and the wide read happens once per frame.
+            # fk[] holds whatever the LAST read left, so family_ports() is only
+            # the truth about this frame straight after a read with every port
+            # open.  A narrow cut clears it and refills one family, so reading
+            # it later reports the radars carrying "nothing" and disables every
+            # quantity.  It is cached with the positions because it comes from
+            # the same read as they do.
             if self._radars and self._radars[0] == frame.timestamp:
-                radars = self._radars[1]
+                radars, support = self._radars[1], self._radars[2]
             else:
                 self._load(frame, product, passports=True)
                 radars = frame.info["radars"]
-                self._radars = (frame.timestamp, radars)
+                support = self._archive.family_ports()
+                self._radars = (frame.timestamp, radars, support)
 
             near = radars_for_line({"proj4": frame.info["proj4"],
                                     "radars": radars},
@@ -616,8 +625,8 @@ class Engine(object):
             # level counts say what the FRAME holds between all forty of its
             # radars; a section comes from two or three of them, and the
             # difference is a ZDR button offering a section the radars along
-            # this line cannot make.  fk[] knows which ports carried what.
-            support = self._archive.family_ports()
+            # this line cannot make.  `support` above knows which ports
+            # carried what.
             chosen = set(ports)
             here = [fam for fam in FAMILY_PRODUCT
                     if support.get(fam, set()) & chosen]
