@@ -612,6 +612,49 @@ class Engine(object):
                        near[0]["distance_km"] if near else 0),
                     {"radars": near, "ports_used": []})
 
+            # Which families the radars in play can actually produce.  The
+            # level counts say what the FRAME holds between all forty of its
+            # radars; a section comes from two or three of them, and the
+            # difference is a ZDR button offering a section the radars along
+            # this line cannot make.  fk[] knows which ports carried what.
+            support = self._archive.family_ports()
+            chosen = set(ports)
+            here = [fam for fam in FAMILY_PRODUCT
+                    if support.get(fam, set()) & chosen]
+
+            if family not in here:
+                names = ", ".join(r["name"] or ("port %d" % r["port"])
+                                  for r in near if r["used"]) or "none"
+                # Where the family IS decides what is worth saying.  Somewhere
+                # else in the frame means "move the line or tick that radar";
+                # nowhere at all means the frame simply has none of it, and
+                # saying "from other radars" then would be a lie.
+                elsewhere = sorted(support.get(family, set()) - chosen)
+                if elsewhere:
+                    # name and distance for the ones in the radar list; a port
+                    # that is not in it gets no distance rather than a made up
+                    # zero, which would read as "right here"
+                    byport = {r["port"]: r for r in near}
+                    bits = []
+                    for p in elsewhere[:3]:
+                        r = byport.get(p)
+                        if r is None:
+                            bits.append("port %d" % p)
+                        else:
+                            bits.append("%s (%.0f km)"
+                                        % (r["name"] or "port %d" % p,
+                                           r["distance_km"]))
+                    tail = ("the frame has it from %s, too far from this line"
+                            % ", ".join(bits))
+                else:
+                    tail = "no radar in this frame carries it"
+                raise EngineError(
+                    "the radars along this line (%s) carry no %s - they have "
+                    "%s.  %s."
+                    % (names, family, ", ".join(here) or "nothing", tail),
+                    {"radars": near, "ports_used": ports,
+                     "families_here": here})
+
             # and now the real load, with only those radars opened
             self._load(frame, product, only=family, ports=ports)
             info = frame.info
@@ -635,6 +678,9 @@ class Engine(object):
             out["family_levels"] = frame.levels(family)
             out["radars_near"] = near
             out["ports_used"] = ports
+            # the families these particular radars can produce, so a caller can
+            # offer what is possible rather than what the frame happens to hold
+            out["families_here"] = here
             return section, out
 
     def health(self):

@@ -301,6 +301,8 @@ def xsection(environ, start_response, params):
         # so that a radar just outside the range can still be switched on.
         "radars": meta["radars_near"],
         "ports_used": meta["ports_used"],
+        # what these radars can produce, as against what the frame holds
+        "families_here": meta["families_here"],
         "lon1": lon1, "lat1": lat1, "lon2": lon2, "lat2": lat2,
         "cells": [x1, y1, x2, y2],
         # where the cut actually landed, which is the centre of a 4 km cell

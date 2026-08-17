@@ -1009,6 +1009,18 @@ function renderFamilies(list, levels) {
   if (!list.includes(family) && list.length) family = list[0];
 }
 
+/* Grey out the quantities the radars along this line cannot produce, leaving
+   the reason in the tooltip.  /info's counts stay the fallback: before a line
+   is drawn there are no radars in play to narrow to. */
+function narrowFamilies(here) {
+  for (const b of document.querySelectorAll('#families button')) {
+    const ok = here.includes(b.dataset.f);
+    b.disabled = !ok;
+    b.classList.toggle('off', !ok);
+    if (!ok) b.title = 'the radars along this line do not carry ' + b.dataset.f;
+  }
+}
+
 function pickFamily(f) {
   drawerDoneIfNarrow();
   family = f;
@@ -1069,6 +1081,12 @@ async function cut() {
     if (ports !== null) q.set('ports', ports.join(','));
     section = await api('/xsection?' + q);
     renderRadars(section);
+    // The quantity buttons were drawn from /info, which counts levels across
+    // every radar in the frame.  A section comes from the two or three near
+    // the line, so redraw them for those: a frame can hold ZDR from a radar
+    // 600 km away while the ones along this line have none, and offering it
+    // means offering a section that cannot be made.
+    if (section.families_here) narrowFamilies(section.families_here);
     bands = parseBands(section.legend);
     renderLegend(section.legend);
 
@@ -1097,6 +1115,7 @@ async function cut() {
     // nearest radar at 378 km is the answer to "why is there no section",
     // and it stays on screen instead of leaving with the toast.
     renderRadars(e.detail && e.detail.radars ? e.detail : null);
+    if (e.detail && e.detail.families_here) narrowFamilies(e.detail.families_here);
     document.getElementById('sect-title').textContent = 'no section';
     document.getElementById('sect-meta').textContent = e.message;
     toast(e.message, true);
