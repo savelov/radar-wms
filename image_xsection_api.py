@@ -330,7 +330,11 @@ def info(environ, start_response, params):
         "utc_offset_hours": ARCHIVE_UTC_OFFSET_HOURS,
         "proj4": state["proj4"],
         "bbox": state["bbox"],
+        # "size" is the width, kept for a caller written when the grid could
+        # only be square; width and height are what to read now.
         "size": state["size"],
+        "width": state.get("width", state["size"]),
+        "height": state.get("height", state["size"]),
         "pixel_m": state["pixel_m"],
         "nodata": state["nodata"],
         "families": state["families"],

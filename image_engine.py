@@ -643,15 +643,15 @@ class Engine(object):
                 geometry, self._grids, lon1, lat1, lon2, lat2)
 
             if want_grid is None:
-                _, _, span = grid_extent(geometry)
+                _, _, wide_km, tall_km = grid_extent(geometry)
                 raise EngineError(
                     "that line is on none of the composite grids - %s.  Each "
-                    "is %.0f km across, and a section can only be cut where "
+                    "is %.0f by %.0f km, and a section can only be cut where "
                     "one of them reaches"
                     % (", ".join("%s misses it by %.0f km" % (n, km)
                                  for n, km in sorted(off_by.items(),
                                                      key=lambda kv: kv[1])),
-                       span),
+                       wide_km, tall_km),
                     {"grids": {n: dict(zip(("lon_0", "lat_0"),
                                            self._grids[n]),
                                        misses_by_km=km)
@@ -887,8 +887,21 @@ if os.environ.get("IMAGE_XSECTION_GRIDS"):
         EXTRA_GRIDS[_name] = (float(_lon), float(_lat))
 
 
+def grid_cells(info):
+    """(width, height) of the composite in cells.
+
+    The grid stopped being square when MapSizeY arrived: the network is a band
+    about 8300 km across and 3400 tall, and a square grid wide enough for
+    Kamchatka spent three fifths of itself on empty Arctic.  `size` is still
+    sent and still means the width, so this reads it when the engine is an
+    older one that has no notion of the two being different.
+    """
+    wide = info.get("width", info.get("size"))
+    return wide, info.get("height", wide)
+
+
 def grid_extent(info):
-    """(centre lon, centre lat, span km) of the composite grid.
+    """(centre lon, centre lat, width km, height km) of the composite grid.
 
     Read back out of the proj4 string rather than kept beside it, because the
     engine builds that string from image.cfg and this must describe whatever
@@ -901,7 +914,9 @@ def grid_extent(info):
             lon0 = float(part[len("+lon_0="):])
         elif part.startswith("+lat_0="):
             lat0 = float(part[len("+lat_0="):])
-    return lon0, lat0, info["size"] * info["pixel_m"] / 1000.0
+    wide, tall = grid_cells(info)
+    return (lon0, lat0, wide * info["pixel_m"] / 1000.0,
+            tall * info["pixel_m"] / 1000.0)
 
 
 def off_grid_km(info, lon, lat):
@@ -916,9 +931,9 @@ def off_grid_km(info, lon, lat):
     than a map that stops at Novosibirsk.  This is what lets us say which.
     """
     x, y = lonlat_to_cell(info, lon, lat)
-    last = info["size"] - 1
-    dx = max(0, -x, x - last)
-    dy = max(0, -y, y - last)
+    wide, tall = grid_cells(info)
+    dx = max(0, -x, x - (wide - 1))
+    dy = max(0, -y, y - (tall - 1))
     return ((dx * dx + dy * dy) ** 0.5) * info["pixel_m"] / 1000.0
 
 
@@ -957,10 +972,14 @@ def grid_for_line(info, grids, lon1, lat1, lon2, lat2):
         off_by[name] = round(beyond, 1)
         if beyond > 0:
             continue
-        mid = (info["size"] - 1) / 2.0
-        edge = max(abs(c - mid)
-                   for c in lonlat_to_cell(candidate, lon1, lat1)
-                          + lonlat_to_cell(candidate, lon2, lat2))
+        # how far out of the middle the line sits, as a fraction of the
+        # half-extent on each axis - a fraction, not cells, because the two
+        # axes need not be the same length any more
+        wide, tall = grid_cells(candidate)
+        half = ((wide - 1) / 2.0, (tall - 1) / 2.0)
+        edge = max(abs(c - half[i % 2]) / half[i % 2]
+                   for i, c in enumerate(lonlat_to_cell(candidate, lon1, lat1)
+                                       + lonlat_to_cell(candidate, lon2, lat2)))
         fits.append((edge, name, centre))
     if not fits:
         return None, None, off_by
@@ -1014,7 +1033,7 @@ def radars_for_line(info, lon1, lat1, lon2, lat2, range_km=None):
         # of its disc onto the composite, so the test is whether any of what
         # it sees can land, not whether its mast does.
         beyond = (off_grid_km(info, radar["lon"], radar["lat"])
-                  if "size" in info else 0.0)
+                  if grid_cells(info)[0] else 0.0)
         reaches = beyond < range_km
         out.append({"port": radar["port"],
                     "name": (radar["name"] or "").strip(),

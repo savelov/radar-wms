@@ -1000,7 +1000,12 @@ function setFrameTime(archive, utc) {
 function showFrame(info) {
   setFrameTime(info.frame_time, info.frame_time_utc);
   document.getElementById('frame-info').innerHTML =
-    '<b>Grid</b> ' + info.size + '² @ ' + (info.pixel_m / 1000) + ' km<br>' +
+    /* Not necessarily square any more - a band is the shape the network
+       actually is - so both extents are named when they differ. */
+    '<b>Grid</b> ' + (info.width && info.height && info.width !== info.height
+       ? info.width + '×' + info.height
+       : (info.width || info.size) + '²') +
+      ' @ ' + (info.pixel_m / 1000) + ' km<br>' +
     '<b>Radars</b> ' + info.radars.length + '<br>' +
     Object.entries(info.levels).map(([k, v]) =>
       '<b>' + k + '</b> ' + v + ' levels').join('<br>');
