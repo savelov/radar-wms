@@ -56,8 +56,9 @@ disk, and the two projects are not merged.
 import json
 import os
 import sys
+import time
 import traceback
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, unquote
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -80,23 +81,24 @@ CORS = [("Access-Control-Allow-Origin", "*"),
         ("Access-Control-Allow-Headers", "Content-Type")]
 
 
-def _json(start_response, payload, status="200 OK", cache=None):
+def _json(start_response, payload, status="200 OK", cache=None, extra=None):
     body = json.dumps(payload, ensure_ascii=False,
                       default=str).encode("utf-8")
     headers = [("Content-Type", "application/json; charset=utf-8"),
                ("Content-Length", str(len(body)))]
     headers.append(("Cache-Control", cache or "no-cache"))
-    start_response(status, headers + CORS)
+    start_response(status, headers + CORS + list(extra or []))
     return [body]
 
 
-def _error(start_response, message, status="400 Bad Request", detail=None):
+def _error(start_response, message, status="400 Bad Request", detail=None,
+           extra=None):
     payload = {"error": message}
     if detail:
         # whatever the engine attached to help the caller act on the refusal -
         # the radar distances behind "no radar near that line", above all
         payload.update(detail)
-    return _json(start_response, payload, status)
+    return _json(start_response, payload, status, extra=extra)
 
 
 def _png(start_response, blob, cache=None):
@@ -105,6 +107,135 @@ def _png(start_response, blob, cache=None):
                ("Cache-Control", cache or "no-cache")]
     start_response("200 OK", headers + CORS)
     return [blob]
+
+
+# -- who may ask -----------------------------------------------------------
+
+#: Answered without a token, so that whatever watches the service keeps
+#: working without being taught the handshake.  /health reports the archive's
+#: state and hands out nothing from it.
+OPEN_ENDPOINTS = {"health"}
+
+#: What one call costs the caller's bucket.  A section is the expensive one -
+#: a third of a second warm, seven cold - and for all of it this daemon group
+#: serves nobody else, because it is one process of one thread and that is
+#: deliberate.  image_engine.py has the reasons it cannot simply be widened.
+COST = {"xsection": 4}
+COST_DEFAULT = 1
+
+#: BURST units per caller, refilled at REFILL a second.  With the costs above
+#: that is ten sections at once and then one every two seconds, against a
+#: page that spends about eight units on a cold load and four for each line
+#: the reader drags.  Deliberately generous: the aim is to stop a script
+#: hammering the single worker, not to ration a reader.  Callers behind one
+#: NAT share a bucket, which is the cost of counting by address.
+BURST = float(os.environ.get("IMAGE_XSECTION_BURST") or 40)
+REFILL = float(os.environ.get("IMAGE_XSECTION_REFILL") or 2)
+
+_BUCKETS = {}
+
+
+def _spend(who, cost):
+    """(allowed, seconds to wait) - a token bucket for one caller.
+
+    A plain dict is safe here only because this app runs one process of one
+    thread; see the WSGIDaemonProcess block in image_xsection_apache.conf.
+    Widen that and this needs a lock.
+    """
+    now = time.monotonic()
+    units, seen = _BUCKETS.get(who, (BURST, now))
+    units = min(BURST, units + (now - seen) * REFILL)
+
+    if units < cost:
+        _BUCKETS[who] = (units, now)
+        return False, (cost - units) / REFILL
+
+    _BUCKETS[who] = (units - cost, now)
+    if len(_BUCKETS) > 4096:
+        # A full bucket is indistinguishable from one that was never used, so
+        # dropping it forgets nothing.  Without this the dict grows for the
+        # life of the worker, one entry per address ever seen.
+        for key, (left, _) in list(_BUCKETS.items()):
+            if left >= BURST and key != who:
+                del _BUCKETS[key]
+    return True, 0.0
+
+
+def _refuse(_token, _ip):
+    return False
+
+
+def _token_guard():
+    """(validate, what to log) - the check to apply, or None to apply none.
+
+    IMAGE_XSECTION_TOKENS=off never asks for a token and =require always does.
+    Unset, it decides: guarded where token_utils can actually sign, unguarded
+    where it cannot.  A development checkout has the placeholder secret this
+    repository ships and no geoip database, so it lands unguarded without
+    being configured; production has a real secret and lands guarded.
+    """
+    want = (os.environ.get("IMAGE_XSECTION_TOKENS") or "auto").strip().lower()
+    if want == "off":
+        return None, "off by IMAGE_XSECTION_TOKENS - anyone may call this"
+
+    try:
+        from token_utils import SECRET, validate_token
+    except Exception as error:                                # noqa: BLE001
+        if want == "auto":
+            return None, "off - token_utils will not import here (%s)" % error
+        return _refuse, ("REFUSING EVERY REQUEST - tokens were required but "
+                         "token_utils will not import (%s)" % error)
+
+    # b"*" * 22 is what the repository ships, and guarding with it would be
+    # worse than not guarding: it would look protected and check a secret
+    # that anyone can read off a public branch.
+    placeholder = (not SECRET) or len(set(SECRET)) == 1
+    if placeholder and want == "auto":
+        return None, ("off - token_utils carries the placeholder secret this "
+                      "repository ships, which would guard nothing")
+    if placeholder:
+        return _refuse, ("REFUSING EVERY REQUEST - tokens were required but "
+                         "the secret is the shipped placeholder")
+
+    return validate_token, "on"
+
+
+TOKEN_VALIDATE, TOKEN_NOTE = _token_guard()
+
+# Said once, at import, into the Apache error log.  The one thing a guard must
+# never be is quietly absent, and every branch above has a way of being right
+# for the wrong reason.
+sys.stderr.write("image_xsection: token check %s\n" % TOKEN_NOTE)
+
+
+def _guard(environ, name, start_response):
+    """None if the caller may proceed, or the reply that refuses them."""
+    # REMOTE_ADDR, not X-Forwarded-For: nothing here strips an inbound
+    # X-Forwarded-For, so trusting it would let a caller pick their own
+    # identity and their own bucket.  This matches the WMS guard next door.
+    who = environ.get("REMOTE_ADDR", "")
+
+    if TOKEN_VALIDATE is not None:
+        token = None
+        for pair in environ.get("QUERY_STRING", "").split("&"):
+            if pair.startswith("token="):
+                token = unquote(pair[len("token="):])
+                break
+        if not token or not TOKEN_VALIDATE(token, who):
+            return _error(start_response,
+                          "this endpoint wants a token: fetch one from "
+                          "/get_token and send it as ?token=...",
+                          "403 Forbidden")
+
+    allowed, wait = _spend(who, COST.get(name, COST_DEFAULT))
+    if not allowed:
+        return _error(start_response,
+                      "too many requests - this service cuts one section at "
+                      "a time, so please wait %.0f seconds" % max(wait, 1),
+                      "429 Too Many Requests",
+                      detail={"retry_after": round(wait, 1)},
+                      extra=[("Retry-After", str(int(wait) + 1))])
+    return None
 
 
 # -- request parsing -------------------------------------------------------
@@ -342,6 +473,11 @@ def application(environ, start_response):
                       "no such endpoint %r - try %s"
                       % (name, ", ".join(sorted(k for k in ROUTES if k))),
                       "404 Not Found")
+
+    if name not in OPEN_ENDPOINTS:
+        refused = _guard(environ, name, start_response)
+        if refused is not None:
+            return refused
 
     try:
         return handler(environ, start_response, _params(environ))

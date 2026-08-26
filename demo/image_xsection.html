@@ -884,8 +884,28 @@ function selectedFrame() {
 
 /* ── talking to the API ──────────────────────────────────────────────── */
 
-async function api(path) {
-  const res  = await fetch(API + path);
+/* The same token the overlay uses, on the same sixty second life.  It is
+   appended here rather than kept in `path` so that a refresh in between a
+   call being built and being sent still sends the current one.  A deployment
+   with no token endpoint sends nothing, and an API that does not ask for one
+   does not care - which is what an older deployment looks like. */
+function apiUrl(path) {
+  if (!wmsToken) return API + path;
+  return API + path + (path.includes('?') ? '&' : '?')
+       + 'token=' + encodeURIComponent(wmsToken);
+}
+
+async function api(path, retried) {
+  const res  = await fetch(apiUrl(path));
+
+  /* A 403 here is almost always a token that expired while the tab was in the
+     background, where the refresh timer is throttled or stopped outright.
+     Fetching a fresh one and going again costs one round trip and saves the
+     reader an error toast for something that is not their doing. */
+  if (res.status === 403 && !retried && await refreshToken()) {
+    return api(path, true);
+  }
+
   const data = await res.json();
   if (!res.ok || data.error) {
     // Carry the body along: a refusal explains itself with the radar
