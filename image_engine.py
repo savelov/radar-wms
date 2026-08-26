@@ -597,9 +597,43 @@ class Engine(object):
                 support = self._archive.family_ports()
                 self._radars = (frame.timestamp, radars, support)
 
-            near = radars_for_line({"proj4": frame.info["proj4"],
-                                    "radars": radars},
-                                   lon1, lat1, lon2, lat2, range_km)
+            # The frame's geometry with the cached radar list on top: the
+            # positions come from the passport read, the projection and the
+            # grid size from the frame, and radars_for_line needs both to say
+            # whether a radar is somewhere the composite can hold.
+            geometry = dict(frame.info)
+            geometry["radars"] = radars
+
+            # Is the line itself on the map?  This is first because it is the
+            # question that makes sense of everything below it: off the grid,
+            # every radar distance is measured in a projection that holds
+            # neither the line nor the radar, and the section that comes back
+            # is empty in a way that reads as a fault rather than an edge.
+            beyond = max(off_grid_km(geometry, lon1, lat1),
+                         off_grid_km(geometry, lon2, lat2))
+            if beyond > 0:
+                lon0, lat0, span = grid_extent(geometry)
+                missing = sorted(r["name"] or ("port %d" % r["port"])
+                                 for r in radars_for_line(
+                                     geometry, lon1, lat1, lon2, lat2,
+                                     range_km)
+                                 if not r["on_grid"])
+                raise EngineError(
+                    "that line is outside the composite grid - it falls %.0f "
+                    "km past the edge.  The grid is %.0f km across, centred "
+                    "on %.4g, %.4g, and %s"
+                    % (beyond, span, lon0, lat0,
+                       ("does not reach %s in this frame"
+                        % ", ".join(missing[:3])) if missing
+                       else "does not reach that far"),
+                    {"grid": {"lon_0": lon0, "lat_0": lat0, "span_km": span,
+                              "beyond_km": round(beyond, 1)},
+                     "off_grid": missing,
+                     "radars": radars_for_line(geometry, lon1, lat1, lon2,
+                                               lat2, range_km),
+                     "ports_used": []})
+
+            near = radars_for_line(geometry, lon1, lat1, lon2, lat2, range_km)
             if ports is None:
                 ports = [r["port"] for r in near if r["within"]]
             else:
@@ -613,12 +647,16 @@ class Engine(object):
                 # there" gets read as "the section is broken" - so the caller
                 # gets the distances and can see for itself, or tick a distant
                 # radar and find out what it looks like.
+                # The nearest radar the composite can actually hold.  Saying
+                # "the nearest is Petropavlovsk at 43 km" about a radar two
+                # thousand kilometres off the grid is true and useless.
+                on = [r for r in near if r["on_grid"]]
                 raise EngineError(
                     "no radar within %.0f km of that line - the nearest is %s "
                     "at %.0f km"
                     % (range_km or RADAR_RANGE_KM,
-                       near[0]["name"] if near else "none",
-                       near[0]["distance_km"] if near else 0),
+                       on[0]["name"] if on else "none",
+                       on[0]["distance_km"] if on else 0),
                     {"radars": near, "ports_used": []})
 
             # Which families the radars in play can actually produce.  The
@@ -773,6 +811,41 @@ def lonlat_to_cell(info, lon, lat):
             int(round((maxy - y_m) / pixel)))
 
 
+def grid_extent(info):
+    """(centre lon, centre lat, span km) of the composite grid.
+
+    Read back out of the proj4 string rather than kept beside it, because the
+    engine builds that string from image.cfg and this must describe whatever
+    it actually built, not what a second copy of the config says it should
+    have.
+    """
+    lon0 = lat0 = None
+    for part in str(info.get("proj4", "")).split():
+        if part.startswith("+lon_0="):
+            lon0 = float(part[len("+lon_0="):])
+        elif part.startswith("+lat_0="):
+            lat0 = float(part[len("+lat_0="):])
+    return lon0, lat0, info["size"] * info["pixel_m"] / 1000.0
+
+
+def off_grid_km(info, lon, lat):
+    """How far outside the composite a point falls, in km.  0.0 when on it.
+
+    The composite is a fixed square - image.cfg says where its centre is and
+    how big it is - and the projection carries on producing coordinates well
+    outside it.  Nothing downstream minds: coord.c writes y=-1 into the
+    translation table for cells that fall off, and crosssect.c bounds checks
+    every sample and calls it nodata.  So a line over Kamchatka cuts cleanly
+    and comes back entirely empty, which looks like a broken section rather
+    than a map that stops at Novosibirsk.  This is what lets us say which.
+    """
+    x, y = lonlat_to_cell(info, lon, lat)
+    last = info["size"] - 1
+    dx = max(0, -x, x - last)
+    dy = max(0, -y, y - last)
+    return ((dx * dx + dy * dy) ** 0.5) * info["pixel_m"] / 1000.0
+
+
 #: How far a radar is taken to see, in km.  The .wrk grids do not record their
 #: own range, and 250 km is what the DMRL network is quoted at; a radar further
 #: than this from the line contributes nothing to a section along it.
@@ -815,11 +888,24 @@ def radars_for_line(info, lon1, lat1, lon2, lat2, range_km=None):
     for radar in info["radars"]:
         rx, ry = to_grid.transform(radar["lon"], radar["lat"])
         km = _point_to_segment_km(rx, ry, x1, y1, x2, y2) / 1000.0
+        # A radar off the edge by less than its own range still paints part
+        # of its disc onto the composite, so the test is whether any of what
+        # it sees can land, not whether its mast does.
+        beyond = (off_grid_km(info, radar["lon"], radar["lat"])
+                  if "size" in info else 0.0)
+        reaches = beyond < range_km
         out.append({"port": radar["port"],
                     "name": (radar["name"] or "").strip(),
                     "lon": radar["lon"], "lat": radar["lat"],
                     "distance_km": round(km, 1),
-                    "within": km <= range_km})
+                    "on_grid": reaches,
+                    "off_grid_km": round(beyond, 1) if beyond else 0.0,
+                    # Distance alone used to decide this, which is how a radar
+                    # two thousand kilometres off the composite came to be
+                    # ticked and used for a section that could only ever be
+                    # empty: the line was off the grid too, so the two were
+                    # neighbours in a projection that held neither of them.
+                    "within": km <= range_km and reaches})
     out.sort(key=lambda r: r["distance_km"])
     return out
 

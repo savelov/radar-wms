@@ -118,6 +118,9 @@ aside h2 .sub { text-transform:none; letter-spacing:0; color:var(--accent2);
 .radars .km { margin-left:auto; color:var(--muted); font-size:.6rem; }
 .radars label.far .nm { color:var(--muted); }
 .radars label.far .km { color:var(--accent2); }
+.radars label.off-grid { opacity:.45; cursor:not-allowed; }
+.radars label.off-grid .nm { color:var(--muted); text-decoration:line-through; }
+.radars label.off-grid .km { color:var(--muted); font-style:italic; }
 
 .right { flex:1; display:flex; flex-direction:column; min-width:0; }
 #map { flex:1; min-height:120px; background:#0b1219; position:relative; }
@@ -682,15 +685,27 @@ function renderRadars(sect) {
     ? '(' + used.size + ' of ' + list.length + ', automatic)'
     : '(' + used.size + ' of ' + list.length + ', chosen)';
 
-  box.innerHTML = list.map(r =>
-    '<label class="' + (r.within ? '' : 'far') + '" title="' +
-      escapeHtml(r.name) + ' — ' + r.distance_km + ' km from the line' +
-      (r.within ? '' : ', outside the usual 250 km range') + '">' +
+  box.innerHTML = list.map(r => {
+    /* A radar the composite cannot hold is not one you can pick, however
+       close to the line it looks.  Kamchatka reads as 43 km from a line over
+       Kamchatka because both are measured in a projection that contains
+       neither - and it used to be offered, ticked, and cut into an empty
+       panel.  Off the grid it is shown, struck through, and not selectable. */
+    const off = r.on_grid === false;
+    const why = off
+      ? ' \u2014 ' + Math.round(r.off_grid_km) + ' km outside the composite grid'
+      : (r.within ? '' : ', outside the usual 250 km range');
+    return '<label class="' + (off ? 'off-grid' : r.within ? '' : 'far') +
+      '" title="' + escapeHtml(r.name) + ' \u2014 ' + r.distance_km +
+      ' km from the line' + why + '">' +
       '<input type="checkbox" value="' + r.port + '"' +
-        (used.has(r.port) ? ' checked' : '') + ' onchange="onRadarToggle()">' +
+        (used.has(r.port) && !off ? ' checked' : '') +
+        (off ? ' disabled' : '') + ' onchange="onRadarToggle()">' +
       '<span class="nm">' + escapeHtml(r.name || ('port ' + r.port)) + '</span>' +
-      '<span class="km">' + r.distance_km.toFixed(0) + ' km</span>' +
-    '</label>').join('');
+      '<span class="km">' +
+        (off ? 'off grid' : r.distance_km.toFixed(0) + ' km') + '</span>' +
+    '</label>';
+  }).join('');
 }
 
 function onRadarToggle() {
