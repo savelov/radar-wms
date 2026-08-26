@@ -1144,7 +1144,13 @@ async function cut() {
       section.frame_time.replace('T', ' ') + '  ·  ' +
       section.length_km + ' km  ·  ' +
       section.levels + ' levels  ·  ' +
-      section.base_km + '–' + section.top_km + ' km';
+      section.base_km + '–' + section.top_km + ' km' +
+      /* The composite is one square of the earth at a time and there is more
+         than one square.  Named only when it is not the usual one, so that
+         the ordinary case stays quiet and a section cut over the Far East
+         says which map it came from. */
+      (section.grid && section.grid.name !== 'home'
+        ? '  ·  ' + section.grid.name + ' grid' : '');
     setFrameTime(section.frame_time, section.frame_time_utc);
     drawSection();
 

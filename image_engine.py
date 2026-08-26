@@ -40,6 +40,7 @@ which mod_wsgi retries, rather than dying mid-answer.
 import bisect
 import datetime
 import os
+import re
 import sys
 import threading
 
@@ -239,11 +240,17 @@ class Engine(object):
         #: the whole reason the engine is kept warm: the load is about a
         #: second and the cut that follows it is twenty milliseconds.
         self._loaded = None
-        #: Where the composite is centred, as (lon_0, lat_0), or None for
-        #: whatever image.cfg said at startup.  Part of the load cache key
-        #: above: a composite is only reusable for a cut that wants the same
-        #: square of the earth under it.
-        self._centre = None
+        #: Which of self._grids the composite is currently centred on, by
+        #: name.  Part of the load cache key above: a composite is only
+        #: reusable for a cut that wants the same square of the earth under
+        #: it.  By name and not by coordinates because the engine keeps the
+        #: centre in single precision radians and hands back 50.0000002530119
+        #: for the fifty that went in, which never compares equal to itself.
+        self._grid = None
+        #: name -> (lon_0, lat_0) for every grid this engine can centre on.
+        #: Filled when the archive opens, because the first entry is whatever
+        #: image.cfg configured and that is not known until then.
+        self._grids = {}
         #: (timestamp, radars) from a read with every port open.  Deciding
         #: which radars a line needs requires knowing where they all are, and
         #: that costs a read - so it is remembered per frame rather than paid
@@ -371,6 +378,17 @@ class Engine(object):
         self._opened_at = datetime.datetime.now()
         self._stamp = stamp
 
+        # The grids this engine can centre on.  "home" is whatever image.cfg
+        # configured, read back from the engine rather than assumed, so that a
+        # deployment which centres its composite somewhere else still gets its
+        # own grid as the default one.  A reopen re-reads it because opening
+        # the archive runs read_cfg again, which puts the configured centre
+        # back whatever we had moved it to.
+        self._grids = dict(EXTRA_GRIDS)
+        home = self._archive.center
+        self._grids["home"] = (round(home[0], 4), round(home[1], 4))
+        self._grid = "home"
+
         # Sorted once here so that finding a frame is a bisect rather than a
         # walk.  min() over the frame list costs nothing at fifteen thousand
         # frames and about forty milliseconds at a hundred and eighty, on
@@ -495,7 +513,7 @@ class Engine(object):
         if (self._loaded and self._loaded[0] == frame.timestamp
                 and not (want & ~self._loaded[1])
                 and pmask == self._loaded[2]
-                and self._centre == self._loaded[3]):
+                and self._grid == self._loaded[3]):
             # everything asked for is already in the composite; set_cur_map is
             # still needed, because "which product is current" is not the mask
             self._archive._lib.set_cur_map(pyimage.PRODUCTS[product])
@@ -508,7 +526,7 @@ class Engine(object):
             self._loaded = None
             raise EngineError(str(error))
         self._loaded = (frame.timestamp, self._archive.loaded_mask, pmask,
-                        self._centre)
+                        self._grid)
         return frame
 
     def info(self, when=None, product="dbz1"):
@@ -617,34 +635,43 @@ class Engine(object):
             geometry = dict(frame.info)
             geometry["radars"] = radars
 
-            # Is the line itself on the map?  This is first because it is the
-            # question that makes sense of everything below it: off the grid,
-            # every radar distance is measured in a projection that holds
-            # neither the line nor the radar, and the section that comes back
-            # is empty in a way that reads as a fault rather than an edge.
-            beyond = max(off_grid_km(geometry, lon1, lat1),
-                         off_grid_km(geometry, lon2, lat2))
-            if beyond > 0:
-                lon0, lat0, span = grid_extent(geometry)
-                missing = sorted(r["name"] or ("port %d" % r["port"])
-                                 for r in radars_for_line(
-                                     geometry, lon1, lat1, lon2, lat2,
-                                     range_km)
-                                 if not r["on_grid"])
+            # Which grid holds this line.  The composite is one square of the
+            # earth at a time and the network does not fit in one square, so
+            # the line decides which square to put it on before anything is
+            # read: a radar is only usable on a grid that contains it.
+            want_grid, centre, off_by = grid_for_line(
+                geometry, self._grids, lon1, lat1, lon2, lat2)
+
+            if want_grid is None:
+                _, _, span = grid_extent(geometry)
                 raise EngineError(
-                    "that line is outside the composite grid - it falls %.0f "
-                    "km past the edge.  The grid is %.0f km across, centred "
-                    "on %.4g, %.4g, and %s"
-                    % (beyond, span, lon0, lat0,
-                       ("does not reach %s in this frame"
-                        % ", ".join(missing[:3])) if missing
-                       else "does not reach that far"),
-                    {"grid": {"lon_0": lon0, "lat_0": lat0, "span_km": span,
-                              "beyond_km": round(beyond, 1)},
-                     "off_grid": missing,
-                     "radars": radars_for_line(geometry, lon1, lat1, lon2,
-                                               lat2, range_km),
-                     "ports_used": []})
+                    "that line is on none of the composite grids - %s.  Each "
+                    "is %.0f km across, and a section can only be cut where "
+                    "one of them reaches"
+                    % (", ".join("%s misses it by %.0f km" % (n, km)
+                                 for n, km in sorted(off_by.items(),
+                                                     key=lambda kv: kv[1])),
+                       span),
+                    {"grids": {n: dict(zip(("lon_0", "lat_0"),
+                                           self._grids[n]),
+                                       misses_by_km=km)
+                               for n, km in off_by.items()},
+                     "radars": [], "ports_used": []})
+
+            if want_grid != self._grid:
+                # Everything already read was painted through the old centre,
+                # so this invalidates the composite AND the radar positions
+                # that were measured on it.  _load()'s key carries the grid
+                # name for exactly this; the read below is what refills both.
+                self._archive.center = centre
+                self._grid = want_grid
+                frame = self._frame_for(when)
+                self._load(frame, product, passports=True)
+                radars = frame.info["radars"]
+                support = self._archive.family_ports()
+                self._radars = (frame.timestamp, radars, support)
+                geometry = dict(frame.info)
+                geometry["radars"] = radars
 
             near = radars_for_line(geometry, lon1, lat1, lon2, lat2, range_km)
             if ports is None:
@@ -664,12 +691,18 @@ class Engine(object):
                 # "the nearest is Petropavlovsk at 43 km" about a radar two
                 # thousand kilometres off the grid is true and useless.
                 on = [r for r in near if r["on_grid"]]
+                if on:
+                    why = ("the nearest is %s at %.0f km"
+                           % (on[0]["name"], on[0]["distance_km"]))
+                else:
+                    # Every radar in the frame is on some other grid.  Saying
+                    # "the nearest is none at 0 km" was the arithmetic showing
+                    # through: there is no nearest, and that is the news.
+                    why = ("no radar in this frame is on the %s grid at all"
+                           % self._grid)
                 raise EngineError(
-                    "no radar within %.0f km of that line - the nearest is %s "
-                    "at %.0f km"
-                    % (range_km or RADAR_RANGE_KM,
-                       on[0]["name"] if on else "none",
-                       on[0]["distance_km"] if on else 0),
+                    "no radar within %.0f km of that line - %s"
+                    % (range_km or RADAR_RANGE_KM, why),
                     {"radars": near, "ports_used": []})
 
             # Which families the radars in play can actually produce.  The
@@ -741,6 +774,13 @@ class Engine(object):
             # the families these particular radars can produce, so a caller can
             # offer what is possible rather than what the frame happens to hold
             out["families_here"] = here
+            # Which square of the earth this was cut on.  Two lines a thousand
+            # kilometres apart can come back with different projections now,
+            # and a caller turning cells back into coordinates needs to know
+            # it got a different one rather than assuming the frame's.
+            out["grid"] = {"name": self._grid,
+                           "lon_0": self._grids[self._grid][0],
+                           "lat_0": self._grids[self._grid][1]}
             return section, out
 
     def health(self):
@@ -824,6 +864,29 @@ def lonlat_to_cell(info, lon, lat):
             int(round((maxy - y_m) / pixel)))
 
 
+#: Grids to offer besides the one image.cfg configures, as name -> (lon, lat).
+#: The composite is a fixed square and the network does not fit in one: the
+#: configured grid reaches Kaliningrad to Novosibirsk, and Khabarovsk and
+#: Petropavlovsk are 1900 and 2200 km beyond its edge.  A second grid centred
+#: at 145E holds the whole Far East - Vladivostok, Khabarovsk, Kamchatka, as
+#: far as Anadyr - and no western radar comes near it, so the two never have
+#: to be merged.  There is nothing between them: Novosibirsk to Khabarovsk is
+#: 3600 km of no radars at all, further than one line is allowed to be.
+#:
+#: Fixed, and few, on purpose.  A centre chosen per request would rebuild
+#: every translation table on every cut; two fixed grids means each radar has
+#: at most two tables, both cached for the life of the worker.
+EXTRA_GRIDS = {"east": (145.0, 54.0)}
+
+if os.environ.get("IMAGE_XSECTION_GRIDS"):
+    # "east:145,54 north:60,70" - for a deployment whose radars are elsewhere
+    EXTRA_GRIDS = {}
+    for _item in os.environ["IMAGE_XSECTION_GRIDS"].split():
+        _name, _, _pair = _item.partition(":")
+        _lon, _, _lat = _pair.partition(",")
+        EXTRA_GRIDS[_name] = (float(_lon), float(_lat))
+
+
 def grid_extent(info):
     """(centre lon, centre lat, span km) of the composite grid.
 
@@ -857,6 +920,52 @@ def off_grid_km(info, lon, lat):
     dx = max(0, -x, x - last)
     dy = max(0, -y, y - last)
     return ((dx * dx + dy * dy) ** 0.5) * info["pixel_m"] / 1000.0
+
+
+def info_on_grid(info, centre):
+    """`info` as it would read with the composite centred at `centre`.
+
+    Only the projection changes: the grid is the same number of cells of the
+    same size wherever it is put.  This lets a grid be measured against a line
+    without moving the engine onto it first, which matters because most
+    candidates lose.
+    """
+    lon0, lat0 = centre
+    out = dict(info)
+    out["proj4"] = re.sub(r"\+lat_0=[-\d.]+", "+lat_0=%g" % lat0,
+                          re.sub(r"\+lon_0=[-\d.]+", "+lon_0=%g" % lon0,
+                                 info["proj4"]))
+    return out
+
+
+def grid_for_line(info, grids, lon1, lat1, lon2, lat2):
+    """Which grid to cut this line on: (name, centre, off_by) - or (None, ...).
+
+    `off_by` is every grid by name and how far outside it the line falls, so
+    that a refusal can say what was tried rather than only that it failed.
+
+    Where more than one grid holds the line the most central wins.  Being on
+    the grid at all is what decides whether a section is possible; being near
+    the middle of it is what decides whether the radars around the line are
+    also on it, since a line at the very edge has half its neighbourhood off.
+    """
+    off_by, fits = {}, []
+    for name, centre in sorted(grids.items()):
+        candidate = info_on_grid(info, centre)
+        beyond = max(off_grid_km(candidate, lon1, lat1),
+                     off_grid_km(candidate, lon2, lat2))
+        off_by[name] = round(beyond, 1)
+        if beyond > 0:
+            continue
+        mid = (info["size"] - 1) / 2.0
+        edge = max(abs(c - mid)
+                   for c in lonlat_to_cell(candidate, lon1, lat1)
+                          + lonlat_to_cell(candidate, lon2, lat2))
+        fits.append((edge, name, centre))
+    if not fits:
+        return None, None, off_by
+    fits.sort()
+    return fits[0][1], fits[0][2], off_by
 
 
 #: How far a radar is taken to see, in km.  The .wrk grids do not record their

@@ -434,6 +434,11 @@ def xsection(environ, start_response, params):
         "ports_used": meta["ports_used"],
         # what these radars can produce, as against what the frame holds
         "families_here": meta["families_here"],
+        # which square of the earth this was cut on.  A line over Kamchatka
+        # and a line over Moscow come back on different projections now, so
+        # anything turning cells back into coordinates has to read this
+        # rather than assume the frame's own.
+        "grid": meta["grid"],
         "lon1": lon1, "lat1": lat1, "lon2": lon2, "lat2": lat2,
         "cells": [x1, y1, x2, y2],
         # where the cut actually landed, which is the centre of a 4 km cell
