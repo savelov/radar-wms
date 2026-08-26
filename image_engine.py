@@ -239,6 +239,11 @@ class Engine(object):
         #: the whole reason the engine is kept warm: the load is about a
         #: second and the cut that follows it is twenty milliseconds.
         self._loaded = None
+        #: Where the composite is centred, as (lon_0, lat_0), or None for
+        #: whatever image.cfg said at startup.  Part of the load cache key
+        #: above: a composite is only reusable for a cut that wants the same
+        #: square of the earth under it.
+        self._centre = None
         #: (timestamp, radars) from a read with every port open.  Deciding
         #: which radars a line needs requires knowing where they all are, and
         #: that costs a read - so it is remembered per frame rather than paid
@@ -481,9 +486,16 @@ class Engine(object):
         # cut over a mosaic built from five radars is a different picture from
         # the same cut over three, which is the whole point of being able to
         # exclude one.  Subset for products, exact for ports.
+        # ...and the grid centre is part of it too.  A composite is radars
+        # painted onto a particular square of the earth; move the square and
+        # every cell means something else, however right the radar and product
+        # masks are.  Nothing moves it yet, so this compares equal today - it
+        # is here so that the thing which will move it cannot be the change
+        # that also has to remember this.
         if (self._loaded and self._loaded[0] == frame.timestamp
                 and not (want & ~self._loaded[1])
-                and pmask == self._loaded[2]):
+                and pmask == self._loaded[2]
+                and self._centre == self._loaded[3]):
             # everything asked for is already in the composite; set_cur_map is
             # still needed, because "which product is current" is not the mask
             self._archive._lib.set_cur_map(pyimage.PRODUCTS[product])
@@ -495,7 +507,8 @@ class Engine(object):
         except pyimage.ImageError as error:
             self._loaded = None
             raise EngineError(str(error))
-        self._loaded = (frame.timestamp, self._archive.loaded_mask, pmask)
+        self._loaded = (frame.timestamp, self._archive.loaded_mask, pmask,
+                        self._centre)
         return frame
 
     def info(self, when=None, product="dbz1"):
