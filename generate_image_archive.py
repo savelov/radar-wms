@@ -11,6 +11,8 @@ libimage.so in process.
     ./generate_image_archive.py                       the last full 10 minutes
     ./generate_image_archive.py --from 2026-07-28T00:00 --to 2026-07-28T01:00
     ./generate_image_archive.py --dry-run             touch no database
+    ./generate_image_archive.py --cfg image-west.cfg  another grid
+    ./generate_image_archive.py --no-db --tiff-dir /tmp/out    rasters only
 
 THE PROJECTION
 --------------
@@ -25,10 +27,17 @@ other pipeline happens to use.
 generate_bufr_archive_test.py passes russia_proj_str, correct there because
 pycao *renders into* that projection.  The C engine does not: it mosaics in
 the equidistant conic its config defines, centred on CenterX/CenterY in
-config/image.cfg, and writes the grid untouched.  So the projdef here comes
-from the engine itself, frame.info["proj4"], and never from a constant in
-this file.  The bbox comes from the same place and is in that projection's
-metres.
+the config it was opened with, and writes the grid untouched.  So the projdef
+here comes from the engine itself, frame.info["proj4"], and never from a
+constant in this file.  The bbox comes from the same place and is in that
+projection's metres.
+
+Which config decides the whole geometry, and --cfg names it.  image.cfg is the
+6000 km square at 4 km; image-west.cfg is Kaliningrad to Novosibirsk on a
+rectangle sized to those radars, same resolution and a third less memory.  A
+grid that is not square is not a special case here - the bbox is already read
+per axis - but it does mean the datasets from two configs are different
+rasters in different frames, and the WMS wants them under different names.
 
 If a consumer needs the pycao frame, reproject the file rather than lying
 about it in the database:
@@ -122,7 +131,7 @@ def store_vectors(frame, dry_run):
     return stored
 
 
-def store_product(frame, name, product, dry_run, tiff_dir):
+def store_product(frame, name, product, dry_run, tiff_dir, no_db=False):
     try:
         frame.load(product)
     except pyimage.ImageError as error:
@@ -138,9 +147,13 @@ def store_product(frame, name, product, dry_run, tiff_dir):
     # bbox must be a tuple: update() stores str(bbox).strip('()'), which only
     # gives the "x1, y1, x2, y2" the WMS parses if it is not a list.
     bbox = tuple(info["bbox"])
-    print("    %-12s %s  %s" % (name, os.path.basename(path), info["proj4"]))
+    wide = info.get("width", info.get("size"))
+    tall = info.get("height", wide)
+    print("    %-12s %s  %d x %d @ %.0f m"
+          % (name, os.path.basename(path), wide, tall, info["pixel_m"]))
+    print("                 %s" % info["proj4"])
     print("                 bbox %s" % (bbox,))
-    if not dry_run:
+    if not dry_run and not no_db:
         db()["update"](frame.timestamp, info["proj4"], bbox, name)
     return True
 
@@ -150,12 +163,18 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--paths", default=os.path.join(IMAGE_HOME, "paths"),
                     help="the viewer's path file (default: %(default)s)")
+    ap.add_argument("--cfg", default="image.cfg",
+                    help="the config naming the grid - centre, size, "
+                         "resolution (default: %(default)s)")
     ap.add_argument("--from", dest="start", help="YYYY-MM-DDTHH:MM (UTC)")
     ap.add_argument("--to", dest="end", help="YYYY-MM-DDTHH:MM (UTC)")
     ap.add_argument("--step", type=int, default=10, help="minutes between frames")
     ap.add_argument("--tiff-dir", help="override wms_data_dir (dry runs)")
     ap.add_argument("--dry-run", action="store_true",
                     help="report what would be written, touch nothing")
+    ap.add_argument("--no-db", action="store_true",
+                    help="write the rasters but register nothing - for "
+                         "checking a grid without a database to hand")
     args = ap.parse_args()
 
     if args.start:
@@ -169,14 +188,21 @@ def main():
                             second=0, microsecond=0)
         end = start + datetime.timedelta(minutes=args.step)
 
-    tiff_dir = args.tiff_dir or (db()["tiff_dir_base"] if not args.dry_run
+    if args.no_db and not args.tiff_dir:
+        # the placeholder below is fine for a dry run, which writes nothing;
+        # --no-db does write, and would put the rasters in a directory called
+        # "<wms_data_dir>" in the working directory
+        ap.error("--no-db needs --tiff-dir: there is no database to ask "
+                 "where the rasters go")
+    tiff_dir = args.tiff_dir or (db()["tiff_dir_base"]
+                                 if not (args.dry_run or args.no_db)
                                  else "<wms_data_dir>")
     step = datetime.timedelta(minutes=args.step)
     print("%s .. %s every %d min%s"
           % (start, end, args.step, "  (dry run)" if args.dry_run else ""))
 
     written = vectors = 0
-    with pyimage.Archive(args.paths) as archive:
+    with pyimage.Archive(args.paths, cfg=args.cfg) as archive:
         print("archive: %d frames, %s .. %s"
               % (len(archive.frames), archive.frames[0].timestamp,
                  archive.frames[-1].timestamp))
@@ -194,13 +220,16 @@ def main():
             print("  %s -> frame %s (%d radars)"
                   % (when, frame.timestamp, len(frame.ports)))
             for name, product in sorted(PRODUCTS.items()):
-                if store_product(frame, name, product, args.dry_run, tiff_dir):
+                if store_product(frame, name, product, args.dry_run,
+                                 tiff_dir, args.no_db):
                     written += 1
-            vectors += store_vectors(frame, args.dry_run)
+            vectors += store_vectors(frame, args.dry_run or args.no_db)
             when += step
 
     print("%d rasters, %d vectors%s"
-          % (written, vectors, " (dry run, nothing stored)" if args.dry_run else ""))
+          % (written, vectors,
+             " (dry run, nothing stored)" if args.dry_run
+             else " (rasters only, nothing registered)" if args.no_db else ""))
     return 0
 
 
