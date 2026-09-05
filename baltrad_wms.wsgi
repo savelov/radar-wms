@@ -9,7 +9,7 @@ import os,sys
 sys.path.append(os.path.dirname(__file__))
 
 from baltrad_wms import read_config,wms_request,read_session
-from token_utils import generate_token, validate_token
+from token_utils import generate_token, validate_token, allow_token_request
 
 def application(environ, start_response):
     # SCRIPT_NAME is wherever Apache mounted this, which is not one spelling:
@@ -24,6 +24,17 @@ def application(environ, start_response):
 
     # 🔑 Token endpoint
     if path.rstrip("/").endswith("get_token"):
+        # One address, one budget.  A viewer refreshing every 30 s never comes
+        # near it; a proxy serving its own users through a single egress
+        # address does, because every one of them arrives as this one IP.
+        if not allow_token_request(client_ip):
+            start_response("429 Too Many Requests", [
+                ("Content-Type", "text/plain"),
+                ("Retry-After", "60"),
+                ("Cache-Control", "no-store")
+            ])
+            return [b"Too Many Requests"]
+
         token = generate_token(client_ip)
 
         start_response("200 OK", [

@@ -98,6 +98,29 @@ var R=6371;
 }
 
 
+      // /vector_wsgi wants a token now.  The animation draws several frames
+      // a second, so the token is held for its lifetime rather than minted
+      // per frame - one per 30 s, the same rate demo.js uses, and well
+      // inside the per-IP budget on /get_token.
+      var cachedToken = null, cachedTokenAt = 0;
+
+      function withToken(callback) {
+        if (cachedToken && Date.now() - cachedTokenAt < 30000) {
+          callback(cachedToken);
+          return;
+        }
+        var req = new XMLHttpRequest();
+        req.onreadystatechange = function() {
+          if (req.readyState == 4 && req.status == 200) {
+            cachedToken = JSON.parse(req.responseText).token;
+            cachedTokenAt = Date.now();
+            callback(cachedToken);
+          }
+        };
+        req.open("GET", "/get_token", true);
+        req.send();
+      }
+
       function setTime() {
 	tile_num++;
 	if (tile_num > tiles.length-1) tile_num=0;
@@ -109,7 +132,7 @@ var R=6371;
           }) );
 
     var xmlhttp = new XMLHttpRequest();
-    var url = '/vector_wsgi?time='+startDate.toISOString().slice(0,-5)+'Z&title=test';
+    var frameDate = startDate;
 
     xmlhttp.onreadystatechange = function() {
     if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
@@ -138,8 +161,12 @@ var R=6371;
     }
     };
 
-    xmlhttp.open("GET", url, true);
-    xmlhttp.send();
+    withToken(function(token) {
+      var url = '/vector_wsgi?time='+frameDate.toISOString().slice(0,-5)+'Z'
+              + '&title=test&token='+encodeURIComponent(token);
+      xmlhttp.open("GET", url, true);
+      xmlhttp.send();
+    });
 
         updateInfo();
       }

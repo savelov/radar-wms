@@ -20,7 +20,13 @@ let WMS_TOKEN = null;
 let LEGEND_BASE_URL = null;
 
 async function refreshToken() {
+    // /get_token answers 429 when this address is over its budget, and
+    // that body is not JSON.  Keep whatever token we already hold rather
+    // than throwing: it has up to 60 s left on it, and the next refresh
+    // is 30 s away.
     const res = await fetch("/get_token");
+    if (!res.ok) return;
+
     const data = await res.json();
     WMS_TOKEN = data.token;
 
@@ -248,11 +254,35 @@ function update_layer_params() {
     wmsLayer.getSource().updateParams({'TIME': time_value,'LAYERS': layer_name});
     document.getElementsByTagName("select")[1].value=new_time_value;
 
+    load_vectors(false);
+}
+
+/*
+ * The phenomena vectors need a token now.  init() and the five-minute
+ * refresh both mint one before anything is drawn, so WMS_TOKEN is normally
+ * ready by the time this runs; the 403 retry covers the one case where it
+ * is not, a token that went stale between two of the 30 s refreshes.
+ */
+function load_vectors(retrying) {
+
+    if (!WMS_TOKEN) {
+        if (!retrying) refreshToken().then(function() { load_vectors(true); });
+        return;
+    }
+
     var xmlhttp = new XMLHttpRequest();
-    var url = '/vector_wsgi?time='+time_value+'&title='+layer_name;
+    var url = '/vector_wsgi?time='+time_value+'&title='+layer_name
+            + '&token='+encodeURIComponent(WMS_TOKEN);
 
     xmlhttp.onreadystatechange = function() {
-    if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+    if (xmlhttp.readyState != 4) return;
+
+    if (xmlhttp.status == 403 && !retrying) {
+        refreshToken().then(function() { load_vectors(true); });
+        return;
+    }
+
+    if (xmlhttp.status == 200) {
 	lineLayer.getSource().clear();
 
 	var myArr = JSON.parse(xmlhttp.responseText);
