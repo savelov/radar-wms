@@ -7,6 +7,7 @@ var wms_tools_url = "/baltrad_tools_wsgi";
 var map;
 var wmsLayer;
 var lineLayer;
+var geolocation_watch;
 var layer_name;
 var first_update = true;
 var time_value = -1; // current time
@@ -145,7 +146,10 @@ async function init() {
       });
      map.addLayer(layer);
 
-    navigator.geolocation.watchPosition(
+    // The id is kept so the watch can be dropped again.  A denied
+    // permission is final, and holding an open position watch for the
+    // life of the tab after one buys nothing.
+    geolocation_watch = navigator.geolocation.watchPosition(
       function (pos) {
     const coords = [pos.coords.longitude, pos.coords.latitude];
     const accuracy = ol.geom.Polygon.circular(coords, pos.coords.accuracy);
@@ -157,11 +161,23 @@ async function init() {
       new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat(coords))),
     ]);
   },
-  function (OAerror) {
-    alert(`ERROR: ${error.message}`);
+  function (err) {
+    // Not an alert.  This is a watch, so a device that cannot get a fix
+    // calls back over and over, and every one of those would be a modal
+    // box for the reader to dismiss.
+    console.warn('geolocation unavailable:', err.message);
+
+    if (err.code === err.PERMISSION_DENIED)
+      navigator.geolocation.clearWatch(geolocation_watch);
   },
   {
-    enableHighAccuracy: true,
+    // A high-accuracy watch keeps the GPS radio awake for as long as the
+    // tab is open, and much of this traffic is phones.  Network
+    // positioning is worth hundreds of metres here, against a composite
+    // drawn in 1-2 km pixels - put enableHighAccuracy back if the dot
+    // ever needs to be sharper than the radar behind it.
+    enableHighAccuracy: false,
+    maximumAge: 30000,
   }
 );
 
